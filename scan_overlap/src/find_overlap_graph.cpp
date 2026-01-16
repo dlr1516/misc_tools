@@ -1,18 +1,9 @@
 #include <iostream>
 #include <vector>
 
-#include <boost/geometry.hpp>
-#include <boost/geometry/geometries/point_xy.hpp>
-#include <boost/geometry/io/io.hpp>
-
 #include <rofl/common/param_map.h>
 
 #include "transform_utils.h"
-
-using Point = boost::geometry::model::d2::point_xy<double>;
-using Linestring = boost::geometry::model::linestring<Point>;
-using Polygon = boost::geometry::model::polygon<Point>;
-using MultiPolygon = boost::geometry::model::multi_polygon<Polygon>;
 
 int main(int argc, char** argv) {
     rofl::ParamMap params;
@@ -35,10 +26,12 @@ int main(int argc, char** argv) {
 
     // Reads the ground truth file
     std::vector<float> timesGt;
-    rimlab_kitti::VectorTransform3 transformsGt;
-    rimlab_kitti::readTimePosQuatFile(filenameGt, timesGt, transformsGt);
+    misc_tools::VectorTransform3 transformsGt;
+    misc_tools::readTimePosQuatFile(filenameGt, timesGt, transformsGt);
     std::cout << "Read " << transformsGt.size() << " ground truth poses from \""
               << filenameGt << "\"" << std::endl;
+
+    // Open directory and read scans (not implemented here)
 
     // boost::geometry::intersection(p1, p2, outputIntersection);
     // boost::geometry::union_(p1, p2, outputUnion);

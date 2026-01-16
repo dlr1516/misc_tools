@@ -9,7 +9,7 @@
 #include <string>
 #include <vector>
 
-namespace rimlab_kitti {
+namespace namespace misc_tools {
 
 using Vector3 = Eigen::Vector3f;
 using Quaternion = Eigen::Quaternionf;
@@ -87,6 +87,6 @@ void computeErrorsInterp(const VectorTransform3& transformsRes,
                          float lenStep,
                          VectorErrorData& errors);
 
-}  // namespace rimlab_kitti
+}  // namespace namespace misc_tools
 
 #endif

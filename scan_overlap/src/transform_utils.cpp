@@ -1,6 +1,6 @@
 #include "transform_utils.h"
 
-namespace rimlab_kitti {
+namespace namespace misc_tools {
 
 bool readTransformLine(std::istream& in, Transform3& transform) {
     std::array<float, 12> values;
@@ -273,22 +273,22 @@ void computeErrors(const VectorTransform3& transformsRes,
         errors.push_back(err);
 
         //			std::cout << "\n---\ninterval res [" <<
-        //firstIdxRes << "," << lastIdxRes << "]  gt [" << firstIdxGt << "," <<
-        //lastIdxGt << "]\n"
+        // firstIdxRes << "," << lastIdxRes << "]  gt [" << firstIdxGt << "," <<
+        // lastIdxGt << "]\n"
         //					<<
         //"transformsRes[firstIdxRes]\n" << transformsRes[firstIdxRes].matrix()
         //<< "\n" << "transformsRes[lastIdxRes]\n" <<
-        //transformsRes[lastIdxRes].matrix() << "\n"
+        // transformsRes[lastIdxRes].matrix() << "\n"
         //					<< "transformsGt[firstIdxGt]\n"
         //<< transformsGt[firstIdxGt].matrix() << "\n" <<
         //"transformsGt[lastIdxGt]\n" << transformsGt[lastIdxGt].matrix() <<
         //"\n"
         //					<< "transformDeltaRes\n" <<
-        //transformDeltaRes.matrix() << "\n" << "transformDeltaGt\n" <<
-        //transformDeltaGt.matrix() << "\n"
+        // transformDeltaRes.matrix() << "\n" << "transformDeltaGt\n" <<
+        // transformDeltaGt.matrix() << "\n"
         //					<< "transformError\n" <<
-        //transformError.matrix() << "\n" << "errTransl " << err.errTransl << "
-        //errRot[deg] " << (180 / M_PI * err.errRot)
+        // transformError.matrix() << "\n" << "errTransl " << err.errTransl << "
+        // errRot[deg] " << (180 / M_PI * err.errRot)
         //					<< std::endl;
         std::cout << "---\ninterval res [" << firstIdxRes << "," << lastIdxRes
                   << "](dist " << distancesRes[firstIdxRes] << ","
@@ -439,4 +439,4 @@ void computeErrorsInterp(const VectorTransform3& transformsRes,
     }
 }
 
-}  // namespace rimlab_kitti
+}  // namespace namespace misc_tools
