@@ -60,6 +60,19 @@ bool readTimeRangesLine(std::istream &in, float &time, Scan &ranges)
     return true;
 }
 
+bool readLaserSpecsLine(std::istream &in, std::string &key, std::string &val)
+{
+    float r;
+    if (!(in >> key >> val)) {
+        std::cerr << "Cannot read line in format: key value"
+                  << std::endl;
+        return false;
+    }
+    //remove ":" char from yaml 
+    key.pop_back();
+    return true;
+}
+
 bool readCalibLine(std::istream& in,
                    std::string& label,
                    Eigen::Affine3f& transform) {
@@ -137,11 +150,28 @@ bool readTimeRangesFile(const std::string &filename, std::vector<float> &times, 
                   << std::endl;
         return false;
     }
-    std::cout << "start" << std::endl;
     while (readTimeRangesLine(file, t, r)) {
         times.push_back(t);
         ranges.push_back(r);
         r.clear();
+    }
+    file.close();
+    return true;
+}
+
+bool readLaserSpecsFile(const std::string &filename, std::map<std::string, std::string> &laserSpecs)
+{
+    std::string k;
+    std::string v;
+    std::ifstream file(filename);
+    if (!file) {
+        std::cerr << "Cannot open laser specs file \"" << filename << "\""
+                  << std::endl;
+        return false;
+    }
+    std::cout << "start" << std::endl;
+    while (readLaserSpecsLine(file, k, v)) {
+        laserSpecs[k] = v;
     }
     file.close();
     return true;

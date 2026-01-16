@@ -8,6 +8,7 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include <map>
 
 namespace misc_tools {
 
@@ -37,6 +38,8 @@ bool readTimePosQuatLine(std::istream& in, float& time, Transform3& transform);
 
 bool readTimeRangesLine(std::istream& in, float& time, Scan& ranges);
 
+bool readLaserSpecsLine(std::istream& in, std::string& key, std::string& val);
+
 bool readTransformFile(const std::string& filename,
                        VectorTransform3& transforms);
 
@@ -51,6 +54,9 @@ bool readTimePosQuatFile(const std::string& filename,
 bool readTimeRangesFile(const std::string& filename,
                             std::vector<float>& times,
                             std::vector<Scan>& ranges);
+
+bool readLaserSpecsFile(const std::string& filename,
+                            std::map<std::string, std::string>& laserSpecs);
 
 void writePoseQuat(std::ostream& out,
                    const float& t,
