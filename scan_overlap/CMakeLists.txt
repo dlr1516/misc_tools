@@ -10,9 +10,9 @@ include_directories(${EIGEN3_INCLUDE_DIR})
 include_directories(${rofl_INCLUDE_DIRS})
 include_directories(src)
 
-add_executable(scan_overlap
-    src/scan_overlap.cpp
+add_executable(find_overlap_graph
+    src/find_overlap_graph.cpp
     src/transform_utils.cpp
 )
-target_link_libraries(scan_overlap ${Boost_LIBRARIES} ${rofl_LIBRARIES})
-target_compile_features(scan_overlap PRIVATE cxx_std_11)
+target_link_libraries(find_overlap_graph ${Boost_LIBRARIES} ${rofl_LIBRARIES})
+target_compile_features(find_overlap_graph PRIVATE cxx_std_11)
