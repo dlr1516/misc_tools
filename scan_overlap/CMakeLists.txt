@@ -12,6 +12,7 @@ include_directories(src)
 
 add_executable(find_overlap_graph
     src/find_overlap_graph.cpp
+    src/scan_overlap.cpp
     src/transform_utils.cpp
 )
 target_link_libraries(find_overlap_graph ${Boost_LIBRARIES} ${rofl_LIBRARIES})

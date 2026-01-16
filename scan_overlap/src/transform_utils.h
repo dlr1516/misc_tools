@@ -9,7 +9,7 @@
 #include <string>
 #include <vector>
 
-namespace namespace misc_tools {
+namespace misc_tools {
 
 using Vector3 = Eigen::Vector3f;
 using Quaternion = Eigen::Quaternionf;
@@ -87,6 +87,6 @@ void computeErrorsInterp(const VectorTransform3& transformsRes,
                          float lenStep,
                          VectorErrorData& errors);
 
-}  // namespace namespace misc_tools
+}  // namespace misc_tools
 
 #endif

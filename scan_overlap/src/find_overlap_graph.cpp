@@ -3,14 +3,12 @@
 
 #include <rofl/common/param_map.h>
 
+#include "scan_overlap.h"
 #include "transform_utils.h"
 
 int main(int argc, char** argv) {
     rofl::ParamMap params;
     std::string filenameCfg, filenameGt, directoryScans;
-    Polygon p1, p2;
-    std::vector<Polygon> outputUnion;
-    std::vector<Polygon> outputIntersection;
 
     // Reads params from command line
     params.read(argc, argv);
@@ -32,9 +30,6 @@ int main(int argc, char** argv) {
               << filenameGt << "\"" << std::endl;
 
     // Open directory and read scans (not implemented here)
-
-    // boost::geometry::intersection(p1, p2, outputIntersection);
-    // boost::geometry::union_(p1, p2, outputUnion);
 
     return 0;
 }

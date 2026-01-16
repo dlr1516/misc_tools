@@ -1,6 +1,6 @@
 #include "transform_utils.h"
 
-namespace namespace misc_tools {
+namespace misc_tools {
 
 bool readTransformLine(std::istream& in, Transform3& transform) {
     std::array<float, 12> values;
@@ -439,4 +439,4 @@ void computeErrorsInterp(const VectorTransform3& transformsRes,
     }
 }
 
-}  // namespace namespace misc_tools
+}  // namespace  misc_tools
