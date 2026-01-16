@@ -16,7 +16,7 @@ using MultiPolygon = boost::geometry::model::multi_polygon<Polygon>;
 
 int main(int argc, char** argv) {
     rofl::ParamMap params;
-    std::string filenameCfg, filenameGt;
+    std::string filenameCfg, filenameGt, directoryScans;
     Polygon p1, p2;
     std::vector<Polygon> outputUnion;
     std::vector<Polygon> outputIntersection;
@@ -27,6 +27,7 @@ int main(int argc, char** argv) {
     params.read(filenameCfg);
     params.read(argc, argv);
     params.getParam<std::string>("gt", filenameGt, std::string(""));
+    params.getParam<std::string>("dir", directoryScans, std::string("."));
 
     std::cout << "\nParams:" << std::endl;
     params.write(std::cout);
