@@ -16,6 +16,7 @@ using Quaternion = Eigen::Quaternionf;
 using Transform3 = Eigen::Affine3f;
 using VectorTransform3 =
     std::vector<Transform3, Eigen::aligned_allocator<Transform3> >;
+using Scan = std::vector<float>;
 
 struct ErrorData {
     int firstIdx;
@@ -34,6 +35,8 @@ bool readTimeTransformLine(std::istream& in,
 
 bool readTimePosQuatLine(std::istream& in, float& time, Transform3& transform);
 
+bool readTimeRangesLine(std::istream& in, float& time, Scan& ranges);
+
 bool readTransformFile(const std::string& filename,
                        VectorTransform3& transforms);
 
@@ -44,6 +47,10 @@ bool readTimeTransformFile(const std::string& filename,
 bool readTimePosQuatFile(const std::string& filename,
                          std::vector<float>& times,
                          VectorTransform3& transforms);
+
+bool readTimeRangesFile(const std::string& filename,
+                            std::vector<float>& times,
+                            std::vector<Scan>& ranges);
 
 void writePoseQuat(std::ostream& out,
                    const float& t,

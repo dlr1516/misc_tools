@@ -48,6 +48,18 @@ bool readTimePosQuatLine(std::istream& in, float& time, Transform3& transform) {
     }
 }
 
+bool readTimeRangesLine(std::istream &in, float &time, Scan &ranges)
+{
+    float r;
+    if (!(in >> time)) {
+        std::cerr << "Cannot read line in format: time ranges"
+                  << std::endl;
+        return false;
+    }
+    while((in.peek()!='\n') && in >> r) ranges.push_back(r);
+    return true;
+}
+
 bool readCalibLine(std::istream& in,
                    std::string& label,
                    Eigen::Affine3f& transform) {
@@ -110,6 +122,26 @@ bool readTimePosQuatFile(const std::string& filename,
     while (readTimePosQuatLine(file, t, tr)) {
         times.push_back(t);
         transforms.push_back(tr);
+    }
+    file.close();
+    return true;
+}
+
+bool readTimeRangesFile(const std::string &filename, std::vector<float> &times, std::vector<Scan> &ranges)
+{
+    Scan r;
+    float t;
+    std::ifstream file(filename);
+    if (!file) {
+        std::cerr << "Cannot open ranges file \"" << filename << "\""
+                  << std::endl;
+        return false;
+    }
+    std::cout << "start" << std::endl;
+    while (readTimeRangesLine(file, t, r)) {
+        times.push_back(t);
+        ranges.push_back(r);
+        r.clear();
     }
     file.close();
     return true;
