@@ -5,14 +5,15 @@
 #include <boost/geometry.hpp>
 #include <boost/geometry/geometries/point_xy.hpp>
 #include <boost/geometry/io/io.hpp>
+#include <boost/geometry/io/wkt/wkt.hpp>
+
+#include "transform_utils.h"
 
 namespace misc_tools {
 
-using Vector2 = Eigen::Vector2d;
-
 using Point = boost::geometry::model::d2::point_xy<double>;
 using Linestring = boost::geometry::model::linestring<Point>;
-using Polygon = boost::geometry::model::polygon<Point>;
+using Polygon = boost::geometry::model::polygon<Point, false, true>;
 using MultiPolygon = boost::geometry::model::multi_polygon<Polygon>;
 
 double scan_overlap(const Polygon& p1, const Polygon& p2);
