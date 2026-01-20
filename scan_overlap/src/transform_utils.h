@@ -13,11 +13,15 @@
 namespace misc_tools {
 
 using Vector3 = Eigen::Vector3f;
+using Vector2 = Eigen::Vector2f;
 using Quaternion = Eigen::Quaternionf;
 using Transform3 = Eigen::Affine3f;
+using Transform2 = Eigen::Affine2f;
 using VectorTransform3 =
     std::vector<Transform3, Eigen::aligned_allocator<Transform3> >;
 using Scan = std::vector<float>;
+using LaserSpecs = std::map<std::string, std::string>;
+using Cloud = std::vector<Vector2>;
 
 struct ErrorData {
     int firstIdx;
@@ -56,7 +60,7 @@ bool readTimeRangesFile(const std::string& filename,
                             std::vector<Scan>& ranges);
 
 bool readLaserSpecsFile(const std::string& filename,
-                            std::map<std::string, std::string>& laserSpecs);
+                            LaserSpecs& laserSpecs);
 
 void writePoseQuat(std::ostream& out,
                    const float& t,
@@ -74,6 +78,8 @@ int findDistanceIdx(const std::vector<float>& distances,
 int findDistanceIncrIdx(const std::vector<float>& distances,
                         int startIdx,
                         float lenStep);
+
+void scanToCloud(const Scan& scan, const LaserSpecs& ls, Cloud& cloud);
 
 float computeTranslationNorm(const Transform3& transformDelta);
 

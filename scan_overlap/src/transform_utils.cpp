@@ -159,13 +159,13 @@ bool readTimeRangesFile(const std::string &filename, std::vector<float> &times, 
     return true;
 }
 
-bool readLaserSpecsFile(const std::string &filename, std::map<std::string, std::string> &laserSpecs)
+bool readLaserSpecsFile(const std::string &filename, LaserSpecs &laserSpecs)
 {
     std::string k;
     std::string v;
     std::ifstream file(filename);
     if (!file) {
-        std::cerr << "Cannot open laser specs file \"" << filename << "\""
+        std::cerr << "Cannot open laser parameters file \"" << filename << "\""
                   << std::endl;
         return false;
     }
@@ -255,7 +255,22 @@ int findDistanceIncrIdx(const std::vector<float>& distances,
     return (int)std::distance(distances.begin(), it);
 }
 
-float computeTranslationNorm(const Transform3& transformDelta) {
+void scanToCloud(const Scan &scan, const LaserSpecs &ls, Cloud &cloud) {
+    float inc = stof(ls.at("angle_increment"));
+    float angle = stof(ls.at("angle_min"));
+    float rangeMin = stof(ls.at("range_min"));
+    float rangeMax = stof(ls.at("range_max"));
+    for(auto& range : scan){
+        if (range >= rangeMin && rangeMax >= range){
+            Vector2 point(range*cosf(angle), range*sinf(angle));
+            cloud.push_back(point);
+        }
+        angle+=inc;
+    }
+}
+
+float computeTranslationNorm(const Transform3 &transformDelta)
+{
     return transformDelta.translation().norm();
 }
 
