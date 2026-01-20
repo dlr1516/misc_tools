@@ -34,7 +34,7 @@ bool readTimeTransformLine(std::istream& in,
     }
 }
 
-bool readTimePosQuatLine(std::istream& in, float& time, Transform3& transform) {
+bool readTimePosQuatLine(std::istream& in, double& time, Transform3& transform) {
     float x, y, z, qx, qy, qz, qw;
     if (in >> time >> x >> y >> z >> qx >> qy >> qz >> qw) {
         Eigen::Quaternionf q(qw, qx, qy, qz);
@@ -48,7 +48,7 @@ bool readTimePosQuatLine(std::istream& in, float& time, Transform3& transform) {
     }
 }
 
-bool readTimeRangesLine(std::istream &in, float &time, Scan &ranges)
+bool readTimeRangesLine(std::istream &in, double &time, Scan &ranges)
 {
     float r;
     if (!(in >> time)) {
@@ -122,10 +122,10 @@ bool readTimeTransformFile(const std::string& filename,
 }
 
 bool readTimePosQuatFile(const std::string& filename,
-                         std::vector<float>& times,
+                         std::vector<double>& times,
                          VectorTransform3& transforms) {
     Transform3 tr;
-    float t;
+    double t;
     std::ifstream file(filename);
     if (!file) {
         std::cerr << "Cannot open transformation file \"" << filename << "\""
@@ -140,10 +140,10 @@ bool readTimePosQuatFile(const std::string& filename,
     return true;
 }
 
-bool readTimeRangesFile(const std::string &filename, std::vector<float> &times, std::vector<Scan> &ranges)
+bool readTimeRangesFile(const std::string &filename, std::vector<double> &times, std::vector<Scan> &ranges)
 {
     Scan r;
-    float t;
+    double t;
     std::ifstream file(filename);
     if (!file) {
         std::cerr << "Cannot open ranges file \"" << filename << "\""
@@ -169,7 +169,6 @@ bool readLaserSpecsFile(const std::string &filename, LaserSpecs &laserSpecs)
                   << std::endl;
         return false;
     }
-    std::cout << "start" << std::endl;
     while (readLaserSpecsLine(file, k, v)) {
         laserSpecs[k] = v;
     }
@@ -284,7 +283,7 @@ float computeRotationAngle(const Transform3& transformDelta) {
 
 void interpolateTransform(const Transform3& transf0,
                           const Transform3& transf1,
-                          float f,
+                          double f,
                           Transform3& transfInterp) {
     if (f < 0.0f || f > 1.0f) {
         std::cerr << __FILE__ << "," << __LINE__
@@ -300,13 +299,37 @@ void interpolateTransform(const Transform3& transf0,
     transfInterp.linear() = rot0.slerp(f, rot1).toRotationMatrix();
 }
 
-void computeErrors(const VectorTransform3& transformsRes,
-                   const std::vector<float>& distancesRes,
-                   const VectorTransform3& transformsGt,
-                   const std::vector<float>& distancesGt,
+bool findGtTransform(const double scanTs, 
+                     const std::vector<double> &gtTimes, 
+                     const VectorTransform3 &gtTransforms, 
+                     Transform3 &transform){
+    for(int i = 1; i < gtTimes.size(); i++){
+        double tsNext = gtTimes[i];
+        if(scanTs <= tsNext){
+            double tsPrev = gtTimes[i-1];
+            Transform3 next = gtTransforms[i];
+            Transform3 prev = gtTransforms[i-1];
+            double f = (scanTs-tsPrev)/(tsNext-tsPrev);
+            interpolateTransform(prev, next, f, transform);
+            return true;
+        }
+    }
+    return false;
+}
+
+void trans3DToTrans2D(const Transform3 &trans3D, Transform2 &trans2D){
+    trans2D = (Eigen::Translation2f(trans3D.translation().topRows<2>()) *
+               trans3D.linear().topLeftCorner<2,2>());
+}
+
+void computeErrors(const VectorTransform3 &transformsRes,
+                   const std::vector<float> &distancesRes,
+                   const VectorTransform3 &transformsGt,
+                   const std::vector<float> &distancesGt,
                    float lenSeg,
                    float lenStep,
-                   VectorErrorData& errors) {
+                   VectorErrorData &errors)
+{
     ErrorData err;
     Transform3 transformDeltaRes, transformDeltaGt, transformError;
     int numRes, numGt, firstIdxGt, lastIdxGt, firstIdxRes, lastIdxRes;

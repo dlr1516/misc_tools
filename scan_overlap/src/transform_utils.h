@@ -23,6 +23,14 @@ using Scan = std::vector<float>;
 using LaserSpecs = std::map<std::string, std::string>;
 using Cloud = std::vector<Vector2>;
 
+struct Node {
+    int id;
+    std::vector<int> adj;
+    Node(int id_) : id(id_), adj() {};
+    Node(int id_, std::vector<int> adj_) : id(id_), adj(adj_) {};
+};
+using Graph = std::vector<Node>;
+
 struct ErrorData {
     int firstIdx;
     int lastIdx;
@@ -38,9 +46,9 @@ bool readTimeTransformLine(std::istream& in,
                            float& time,
                            Transform3& transform);
 
-bool readTimePosQuatLine(std::istream& in, float& time, Transform3& transform);
+bool readTimePosQuatLine(std::istream& in, double& time, Transform3& transform);
 
-bool readTimeRangesLine(std::istream& in, float& time, Scan& ranges);
+bool readTimeRangesLine(std::istream& in, double& time, Scan& ranges);
 
 bool readLaserSpecsLine(std::istream& in, std::string& key, std::string& val);
 
@@ -52,11 +60,11 @@ bool readTimeTransformFile(const std::string& filename,
                            VectorTransform3& transforms);
 
 bool readTimePosQuatFile(const std::string& filename,
-                         std::vector<float>& times,
+                         std::vector<double>& times,
                          VectorTransform3& transforms);
 
 bool readTimeRangesFile(const std::string& filename,
-                            std::vector<float>& times,
+                            std::vector<double>& times,
                             std::vector<Scan>& ranges);
 
 bool readLaserSpecsFile(const std::string& filename,
@@ -87,8 +95,15 @@ float computeRotationAngle(const Transform3& transformDelta);
 
 void interpolateTransform(const Transform3& transf0,
                           const Transform3& transf1,
-                          float f,
+                          double f,
                           Transform3& transfInterp);
+
+bool findGtTransform(const double scanTs, 
+                     const std::vector<double>& gtTimes, 
+                     const VectorTransform3& gtTransforms,
+                     Transform3& transform);
+
+void trans3DToTrans2D(const Transform3& trans3D, Transform2& trans2D);
 
 void computeErrors(const VectorTransform3& transformsRes,
                    const std::vector<float>& distancesRes,

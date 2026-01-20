@@ -10,16 +10,9 @@ double scan_overlap(const Polygon& p1, const Polygon& p2) {
     boost::geometry::intersection(p1, p2, outputIntersection);
     boost::geometry::union_(p1, p2, outputUnion);
 
-    double areaIntersection = 0.0;
-    /*for (const auto& poly : outputIntersection) {
-        areaIntersection += boost::geometry::area(poly);
-    }*/
-    areaIntersection += boost::geometry::area(outputIntersection);
-    double areaUnion = 0.0;
-    /*for (const auto& poly : outputUnion) {
-        areaUnion += boost::geometry::area(poly);
-    }*/
-    areaUnion += boost::geometry::area(outputUnion);
+    double areaIntersection = boost::geometry::area(outputIntersection);
+    double areaUnion = boost::geometry::area(outputUnion);
+    /*
     std::cout << "union: " << areaUnion <<  " " << (boost::geometry::is_valid(outputUnion) ? "valid " : "non valid ") <<
         " inter: " << areaIntersection <<  " " << (boost::geometry::is_valid(outputIntersection) ? "valid " : "non valid ") << std::endl;
 
@@ -54,7 +47,7 @@ double scan_overlap(const Polygon& p1, const Polygon& p2) {
         mapper.map(p2, "fill-opacity:0.5;fill:rgb(0,255,0);stroke:rgb(0,100,0);stroke-width:2");
         mapper.map(outputIntersection, "fill-opacity:0;fill:rgb(255,255,255);stroke-opacity:1;stroke:rgb(0,0,0);stroke-width:3");
     }
-
+    */
     if (areaUnion > 0.0) {
         return areaIntersection / areaUnion;
     }

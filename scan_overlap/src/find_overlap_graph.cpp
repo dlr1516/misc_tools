@@ -6,6 +6,8 @@
 #include "scan_overlap.h"
 #include "transform_utils.h"
 
+#define GRAPH_SIZE 10
+
 
 //Quaternion: (.0, .0, 0.009603885349331175, 0.9999538816296465)
 misc_tools::Transform2 scanFrontToBase = 
@@ -35,7 +37,7 @@ int main(int argc, char** argv) {
     std::cout << "-------\n" << std::endl;
 
     // Reads the ground truth file
-    std::vector<float> timesGt, timesScans;
+    std::vector<double> timesGt, timesScans;
     std::vector<misc_tools::Scan> ranges;
     misc_tools::LaserSpecs laserSpecs;
     misc_tools::VectorTransform3 transformsGt;
@@ -67,7 +69,7 @@ int main(int argc, char** argv) {
         std::cout << k << ": " << v << std::endl;
     std::cout << std::endl;
 
-    misc_tools::Cloud cloud1, cloud2;
+    /*misc_tools::Cloud cloud1, cloud2;
     misc_tools::Scan scan;
     scan = ranges[0];
     misc_tools::scanToCloud(scan, laserSpecs, cloud1);
@@ -75,13 +77,13 @@ int main(int argc, char** argv) {
     std::cout << "cloud 1 size: " << cloud1.size() << 
         ", scan 1 size: " << scan.size() << std::endl;
 
-    for(auto&p : cloud1) p = scanFrontToBase*p;
+    //for(auto&p : cloud1) p = scanFrontToBase*p;
 
     scan = ranges[1];
     misc_tools::scanToCloud(scan, laserSpecs, cloud2);
     std::cout << "cloud 2 size: " << cloud2.size() << 
         ", scan 2 size: " << scan.size() << std::endl;
-    for(auto&p : cloud2) p = scanFrontToBase*p;
+    //for(auto&p : cloud2) p = scanFrontToBase*p;
 
     std::cout << "First overlap: " << misc_tools::scan_overlap(cloud1, cloud2) << std::endl;
 
@@ -92,7 +94,65 @@ int main(int argc, char** argv) {
         ", scan 3 size: " << scan.size() << std::endl;
     for(auto&p : cloud2) p = scanFrontToBase*p;
 
-    std::cout << "Second overlap: " << misc_tools::scan_overlap(cloud1, cloud2) << std::endl;
+    std::cout << "Second overlap: " << misc_tools::scan_overlap(cloud1, cloud2) << std::endl;*/
+
+    std::vector<misc_tools::Cloud> clouds;
+    for(auto& scan : ranges){
+        misc_tools::Cloud tmp;
+        misc_tools::scanToCloud(scan, laserSpecs, tmp);
+        clouds.push_back(tmp);
+    }
+    misc_tools::Graph graph;
+    std::vector<misc_tools::Cloud> transClouds;
+    int lastIdx = 1;
+    graph.push_back(misc_tools::Node(lastIdx));
+    {
+        misc_tools::Cloud cloud = clouds[lastIdx];
+        double ts = timesScans[lastIdx];
+        misc_tools::Transform3 gt3D;
+        misc_tools::Transform2 gt2D;
+        if(!misc_tools::findGtTransform(ts, timesGt, transformsGt, gt3D)){
+            std::cout << "Couldn't find gt transform for first cloud!" << std::endl;
+            return -1;
+        }
+        misc_tools::trans3DToTrans2D(gt3D, gt2D);
+
+        for(auto& p : cloud) p = gt2D*scanFrontToBase*p;
+        transClouds.push_back(cloud);
+    }
+    bool exit = false;
+    while(graph.size() < GRAPH_SIZE && !exit){
+        exit = true;
+        for(int i = lastIdx+1; i<clouds.size(); i++){
+            misc_tools::Cloud cloud = clouds[i];
+            double ts = timesScans[i];
+            misc_tools::Transform3 gt3D;
+            misc_tools::Transform2 gt2D;
+
+            if(!misc_tools::findGtTransform(ts, timesGt, transformsGt, gt3D)){
+                std::cout << "Couldn't find gt transform!" << std::endl;
+                break;
+            }
+            misc_tools::trans3DToTrans2D(gt3D, gt2D);
+
+            for(auto& p : cloud) p = gt2D*scanFrontToBase*p;
+
+            double overlap = misc_tools::scan_overlap(transClouds.back(), cloud);
+            std::cout << overlap << std::endl;
+            if(overlap < .75){
+                graph.push_back(misc_tools::Node(i));
+                transClouds.push_back(cloud);
+                lastIdx=i;
+                exit=false;
+                break;
+            }
+        }
+    }
+    std::cout << "Graph size: " << graph.size() << std::endl;
+
+    for(auto& n : graph){
+        std::cout << "id: " << n.id << std::endl;
+    }
 
     return 0;
 }
