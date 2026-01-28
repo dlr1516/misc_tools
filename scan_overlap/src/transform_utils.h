@@ -89,6 +89,8 @@ int findDistanceIncrIdx(const std::vector<float>& distances,
 
 void scanToCloud(const Scan& scan, const LaserSpecs& ls, Cloud& cloud);
 
+void orderCloudRadially(Cloud& cloud);
+
 float computeTranslationNorm(const Transform3& transformDelta);
 
 float computeRotationAngle(const Transform3& transformDelta);
@@ -104,6 +106,8 @@ bool findGtTransform(const double scanTs,
                      Transform3& transform);
 
 void trans3DToTrans2D(const Transform3& trans3D, Transform2& trans2D);
+
+void joinClouds(const Cloud& cloud1, const Cloud& cloud2, Cloud& joined);
 
 void computeErrors(const VectorTransform3& transformsRes,
                    const std::vector<float>& distancesRes,

@@ -21,7 +21,8 @@ misc_tools::Transform2 scanRearToBase =
 
 int main(int argc, char** argv) {
     rofl::ParamMap params;
-    std::string filenameCfg, filenameGt, filenameScans, filenameLaser;
+    std::string filenameCfg, filenameGt, 
+        filenameScansFront, filenameScansRear, filenameLaser;
 
     // Reads params from command line
     params.read(argc, argv);
@@ -29,34 +30,20 @@ int main(int argc, char** argv) {
     params.read(filenameCfg);
     params.read(argc, argv);
     params.getParam<std::string>("gt", filenameGt, std::string(""));
-    params.getParam<std::string>("scans", filenameScans, std::string(""));
+    params.getParam<std::string>("scansFront", filenameScansFront, std::string(""));
+    params.getParam<std::string>("scansRear", filenameScansRear, std::string(""));
     params.getParam<std::string>("laser", filenameLaser, std::string(""));
 
     std::cout << "\nParams:" << std::endl;
     params.write(std::cout);
     std::cout << "-------\n" << std::endl;
 
-    // Reads the ground truth file
     std::vector<double> timesGt, timesScans;
-    std::vector<misc_tools::Scan> ranges;
     misc_tools::LaserSpecs laserSpecs;
     misc_tools::VectorTransform3 transformsGt;
-    if(!misc_tools::readTimePosQuatFile(filenameGt, timesGt, transformsGt)){
-        std::cout << "Couldn't read ground truth poses from \""
-                  << filenameGt << "\"" << std::endl;
-        return -1;
-    }
-    std::cout << "Read " << transformsGt.size() << " ground truth poses from \""
-              << filenameGt << "\"" << std::endl;
-
-    // Open file and read scans
-    if(!misc_tools::readTimeRangesFile(filenameScans, timesScans, ranges)){
-        std::cout << "Couldn't read ranges from \""
-                  << filenameScans << "\"" << std::endl;
-        return -1;
-    }
-    std::cout << "Read " << ranges.size() << " ranges from \""
-              << filenameScans << "\"" << std::endl;
+    std::vector<misc_tools::Cloud> clouds, transClouds;
+    std::string base_dir = "./poly_img";
+    misc_tools::Graph graph;
     
     // Open file and read laser specifics
     if(!misc_tools::readLaserSpecsFile(filenameLaser, laserSpecs)){
@@ -68,42 +55,61 @@ int main(int argc, char** argv) {
     for(auto & [k, v] : laserSpecs) 
         std::cout << k << ": " << v << std::endl;
     std::cout << std::endl;
-
-    /*misc_tools::Cloud cloud1, cloud2;
-    misc_tools::Scan scan;
-    scan = ranges[0];
-    misc_tools::scanToCloud(scan, laserSpecs, cloud1);
-    std::cout << std::endl << std::endl;
-    std::cout << "cloud 1 size: " << cloud1.size() << 
-        ", scan 1 size: " << scan.size() << std::endl;
-
-    //for(auto&p : cloud1) p = scanFrontToBase*p;
-
-    scan = ranges[1];
-    misc_tools::scanToCloud(scan, laserSpecs, cloud2);
-    std::cout << "cloud 2 size: " << cloud2.size() << 
-        ", scan 2 size: " << scan.size() << std::endl;
-    //for(auto&p : cloud2) p = scanFrontToBase*p;
-
-    std::cout << "First overlap: " << misc_tools::scan_overlap(cloud1, cloud2) << std::endl;
-
-    scan = ranges[10];
-    cloud2.clear();
-    misc_tools::scanToCloud(scan, laserSpecs, cloud2);
-    std::cout << "cloud 3 size: " << cloud2.size() << 
-        ", scan 3 size: " << scan.size() << std::endl;
-    for(auto&p : cloud2) p = scanFrontToBase*p;
-
-    std::cout << "Second overlap: " << misc_tools::scan_overlap(cloud1, cloud2) << std::endl;*/
-
-    std::vector<misc_tools::Cloud> clouds;
-    for(auto& scan : ranges){
-        misc_tools::Cloud tmp;
-        misc_tools::scanToCloud(scan, laserSpecs, tmp);
-        clouds.push_back(tmp);
+    // Reads the ground truth file
+    if(!misc_tools::readTimePosQuatFile(filenameGt, timesGt, transformsGt)){
+        std::cout << "Couldn't read ground truth poses from \""
+                  << filenameGt << "\"" << std::endl;
+        return -1;
     }
-    misc_tools::Graph graph;
-    std::vector<misc_tools::Cloud> transClouds;
+    std::cout << "Read " << transformsGt.size() << " ground truth poses from \""
+              << filenameGt << "\"" << std::endl;
+
+    {
+        std::vector<misc_tools::Scan> rangesFront, rangesRear;
+        std::vector<misc_tools::Cloud> cloudsFront, cloudsRear;
+        // Open file and read scans
+        if(!misc_tools::readTimeRangesFile(filenameScansRear, timesScans, rangesRear)){
+            std::cout << "Couldn't read ranges from \""
+                    << filenameScansRear << "\"" << std::endl;
+            return -1;
+        }
+        std::cout << "Read " << rangesRear.size() << " ranges from \""
+                << filenameScansRear << "\"" << std::endl;
+
+        for(auto& scan : rangesRear){
+            misc_tools::Cloud tmp;
+            misc_tools::scanToCloud(scan, laserSpecs, tmp);
+            //for(auto& p : tmp) p = scanRearToBase*p;
+            cloudsRear.push_back(tmp);
+        }
+
+        timesScans.clear();
+        if(!misc_tools::readTimeRangesFile(filenameScansFront, timesScans, rangesFront)){
+            std::cout << "Couldn't read ranges from \""
+                    << filenameScansFront << "\"" << std::endl;
+            return -1;
+        }
+        std::cout << "Read " << rangesFront.size() << " ranges from \""
+                << filenameScansFront << "\"" << std::endl;
+
+        for(auto& scan : rangesFront){
+            misc_tools::Cloud tmp;
+            misc_tools::scanToCloud(scan, laserSpecs, tmp);
+            //for(auto& p : tmp) p = scanFrontToBase*p;
+            cloudsFront.push_back(tmp);
+        }
+
+        int end = std::min(cloudsFront.size(), cloudsRear.size());
+        for(int i = 0; i < end; i++) {
+            misc_tools::Cloud cloudFront, cloudRear, cloud;
+            cloudFront = cloudsFront[i];
+            cloudRear = cloudsRear[i];
+            misc_tools::joinClouds(cloudFront, cloudRear, cloud);
+            clouds.push_back(cloud);
+        }
+        clouds = cloudsRear;
+    }
+
     int lastIdx = 1;
     graph.push_back(misc_tools::Node(lastIdx));
     {
@@ -115,9 +121,17 @@ int main(int argc, char** argv) {
             std::cout << "Couldn't find gt transform for first cloud!" << std::endl;
             return -1;
         }
-        misc_tools::trans3DToTrans2D(gt3D, gt2D);
 
-        for(auto& p : cloud) p = gt2D*scanFrontToBase*p;
+        misc_tools::trans3DToTrans2D(gt3D, gt2D);
+        //for(auto& p : cloud) p = gt2D*p;
+        double oldAngle = -INFINITY;
+        for(auto& p : cloud){
+            double angle = atan2(p.y(), p.x());
+            if (angle < oldAngle) std::cout << "___OH NO!___";
+            std::cout << angle << "; ";
+            oldAngle = angle;
+        }
+        std::cout << std::endl << std::endl;
         transClouds.push_back(cloud);
     }
     bool exit = false;
@@ -133,13 +147,17 @@ int main(int argc, char** argv) {
                 std::cout << "Couldn't find gt transform!" << std::endl;
                 break;
             }
-            misc_tools::trans3DToTrans2D(gt3D, gt2D);
 
-            for(auto& p : cloud) p = gt2D*scanFrontToBase*p;
+            misc_tools::trans3DToTrans2D(gt3D, gt2D);
+            //for(auto& p : cloud) p = gt2D*p;
 
             double overlap = misc_tools::scan_overlap(transClouds.back(), cloud);
             std::cout << overlap << std::endl;
             if(overlap < .75){
+                std::string dir = base_dir + "/" + 
+                    std::to_string(lastIdx) + "_" + std::to_string(i);
+                misc_tools::scan_overlap_visualization(transClouds.back(), cloud, dir);
+
                 graph.push_back(misc_tools::Node(i));
                 transClouds.push_back(cloud);
                 lastIdx=i;

@@ -51,12 +51,22 @@ bool readTimePosQuatLine(std::istream& in, double& time, Transform3& transform) 
 bool readTimeRangesLine(std::istream &in, double &time, Scan &ranges)
 {
     float r;
-    if (!(in >> time)) {
+    std::string line;
+    std::getline(in, line);
+    std::stringstream ls(line);
+    /*if (!(in >> time)) {
         std::cerr << "Cannot read line in format: time ranges"
                   << std::endl;
         return false;
     }
     while((in.peek()!='\n') && in >> r) ranges.push_back(r);
+    return true;*/
+    if (!(ls >> time)){
+        std::cerr << "Cannot read line in format: time ranges"
+                  << std::endl;
+        return false;
+    }
+    while(ls >> r) ranges.push_back(r);
     return true;
 }
 
@@ -144,6 +154,7 @@ bool readTimeRangesFile(const std::string &filename, std::vector<double> &times,
 {
     Scan r;
     double t;
+    long line = 0;
     std::ifstream file(filename);
     if (!file) {
         std::cerr << "Cannot open ranges file \"" << filename << "\""
@@ -153,6 +164,7 @@ bool readTimeRangesFile(const std::string &filename, std::vector<double> &times,
     while (readTimeRangesLine(file, t, r)) {
         times.push_back(t);
         ranges.push_back(r);
+        //std::cout << line++ <<" scan size: " << r.size() << std::endl;
         r.clear();
     }
     file.close();
@@ -268,6 +280,15 @@ void scanToCloud(const Scan &scan, const LaserSpecs &ls, Cloud &cloud) {
     }
 }
 
+void orderCloudRadially(Cloud &cloud){
+    std::sort(cloud.begin(), cloud.end(), 
+    [](const Vector2& a, Vector2& b) {
+        double angleA = atan2(a.y(), a.x());
+        double angleB = atan2(b.y(), b.x());
+        return angleA < angleB;
+    });
+}
+
 float computeTranslationNorm(const Transform3 &transformDelta)
 {
     return transformDelta.translation().norm();
@@ -320,6 +341,30 @@ bool findGtTransform(const double scanTs,
 void trans3DToTrans2D(const Transform3 &trans3D, Transform2 &trans2D){
     trans2D = (Eigen::Translation2f(trans3D.translation().topRows<2>()) *
                trans3D.linear().topLeftCorner<2,2>());
+}
+
+void joinClouds(const Cloud &cloud1, const Cloud &cloud2, Cloud &joined){
+    joined.clear();
+    joined = cloud1;
+
+    double startAngle = atan2(cloud1.front().y(), cloud1.front().x());
+    double endAngle = atan2(cloud1.back().y(), cloud1.back().x());
+
+    if(endAngle < startAngle){ //scan interval goes over pi/-pi
+        for(auto& p : cloud2){
+            double angle = atan2(p.y(),p.x());
+            if(endAngle < angle < startAngle) joined.push_back(p);
+        } 
+    }
+    else{
+        for(auto& p : cloud2){
+            double angle = atan2(p.y(),p.x());
+            if((endAngle < angle && angle <= M_PI) || 
+                (-M_PI <= angle && angle < startAngle)) 
+                joined.push_back(p);
+        }
+
+    }
 }
 
 void computeErrors(const VectorTransform3 &transformsRes,
