@@ -40,7 +40,7 @@ int main(int argc, char** argv) {
     params.write(std::cout);
     std::cout << "-------\n" << std::endl;
 
-    std::vector<double> timesGt, timesScans;
+    std::vector<double> timesGt, timesScansRear,timesScansFront;
     misc_tools::LaserSpecs laserSpecs;
     misc_tools::VectorTransform3 transformsGt;
     std::vector<misc_tools::Cloud> clouds, transClouds,
@@ -71,7 +71,7 @@ int main(int argc, char** argv) {
         std::vector<misc_tools::Scan> rangesFront, rangesRear;
         //std::vector<misc_tools::Cloud> cloudsFront, cloudsRear;
         // Open file and read scans
-        if(!misc_tools::readTimeRangesFile(filenameScansRear, timesScans, rangesRear)){
+        if(!misc_tools::readTimeRangesFile(filenameScansRear, timesScansRear, rangesRear)){
             std::cout << "Couldn't read ranges from \""
                     << filenameScansRear << "\"" << std::endl;
             return -1;
@@ -86,8 +86,7 @@ int main(int argc, char** argv) {
             cloudsRear.push_back(tmp);
         }
 
-        timesScans.clear();
-        if(!misc_tools::readTimeRangesFile(filenameScansFront, timesScans, rangesFront)){
+        if(!misc_tools::readTimeRangesFile(filenameScansFront, timesScansFront, rangesFront)){
             std::cout << "Couldn't read ranges from \""
                     << filenameScansFront << "\"" << std::endl;
             return -1;
@@ -119,7 +118,7 @@ int main(int argc, char** argv) {
     graph.push_back(misc_tools::Node(lastIdx));
     {
         misc_tools::Cloud cloud = clouds[lastIdx];
-        double ts = timesScans[lastIdx];
+        double ts = timesScansFront[lastIdx];
         misc_tools::Transform3 gt3D;
         misc_tools::Transform2 gt2D;
         if(!misc_tools::findGtTransform(ts, timesGt, transformsGt, gt3D)){
@@ -137,17 +136,28 @@ int main(int argc, char** argv) {
         exit = true;
         for(int i = lastIdx+1; i<clouds.size(); i++){
             misc_tools::Cloud cloud = clouds[i];
-            double ts = timesScans[i];
-            misc_tools::Transform3 gt3D;
-            misc_tools::Transform2 gt2D;
+            double tsF = timesScansFront[i];
+            double tsR = timesScansRear[i];
+            misc_tools::Transform3 gt3DF, gt3DR;
+            misc_tools::Transform2 gt2DF, gt2DR;
 
-            if(!misc_tools::findGtTransform(ts, timesGt, transformsGt, gt3D)){
+            if(!misc_tools::findGtTransform(tsF, timesGt, transformsGt, gt3DF)){
                 std::cout << "Couldn't find gt transform!" << std::endl;
                 break;
             }
+            misc_tools::trans3DToTrans2D(gt3DF, gt2DF);
 
-            misc_tools::trans3DToTrans2D(gt3D, gt2D);
-            for(auto& p : cloud) p = gt2D*p;
+            if(!misc_tools::findGtTransform(tsR, timesGt, transformsGt, gt3DR)){
+                std::cout << "Couldn't find gt transform!" << std::endl;
+                break;
+            }
+            misc_tools::trans3DToTrans2D(gt3DR, gt2DR);
+            //points from rear are appended at the end of front
+            int lastF = cloudsFront[i].size();
+            for(int i = 0; i < cloud.size(); i++){
+                if(i < lastF)   cloud[i] = gt2DF*cloud[i];
+                else            cloud[i] = gt2DR*cloud[i];
+            }
 
             double overlap = misc_tools::scan_overlap(transClouds.back(), cloud);
             saveForPlot(cloudsFront[i], cloudsRear[i], cloud);
@@ -165,7 +175,6 @@ int main(int argc, char** argv) {
             }
         }
     }
-    //saveForPlot(cloudsFront[23], cloudsRear[23], clouds[23]);
     std::cout << "Graph size: " << graph.size() << std::endl;
 
     for(auto& n : graph){
