@@ -18,6 +18,8 @@ misc_tools::Transform2 scanRearToBase =
     Eigen::Rotation2Df(2.*std::atan2(0.9999853067886563, -0.005420904610579566)) *
     Eigen::Translation2f(-0.30272182866463804, -0.001624570483175795);
 
+void saveForPlot(misc_tools::Cloud cloud1, misc_tools::Cloud cloud2, misc_tools::Cloud cloud3);
+
 
 int main(int argc, char** argv) {
     rofl::ParamMap params;
@@ -41,7 +43,8 @@ int main(int argc, char** argv) {
     std::vector<double> timesGt, timesScans;
     misc_tools::LaserSpecs laserSpecs;
     misc_tools::VectorTransform3 transformsGt;
-    std::vector<misc_tools::Cloud> clouds, transClouds;
+    std::vector<misc_tools::Cloud> clouds, transClouds,
+                                   cloudsFront, cloudsRear;
     std::string base_dir = "./poly_img";
     misc_tools::Graph graph;
     
@@ -66,7 +69,7 @@ int main(int argc, char** argv) {
 
     {
         std::vector<misc_tools::Scan> rangesFront, rangesRear;
-        std::vector<misc_tools::Cloud> cloudsFront, cloudsRear;
+        //std::vector<misc_tools::Cloud> cloudsFront, cloudsRear;
         // Open file and read scans
         if(!misc_tools::readTimeRangesFile(filenameScansRear, timesScans, rangesRear)){
             std::cout << "Couldn't read ranges from \""
@@ -79,7 +82,7 @@ int main(int argc, char** argv) {
         for(auto& scan : rangesRear){
             misc_tools::Cloud tmp;
             misc_tools::scanToCloud(scan, laserSpecs, tmp);
-            //for(auto& p : tmp) p = scanRearToBase*p;
+            for(auto& p : tmp) p = scanRearToBase*p;
             cloudsRear.push_back(tmp);
         }
 
@@ -95,7 +98,7 @@ int main(int argc, char** argv) {
         for(auto& scan : rangesFront){
             misc_tools::Cloud tmp;
             misc_tools::scanToCloud(scan, laserSpecs, tmp);
-            //for(auto& p : tmp) p = scanFrontToBase*p;
+            for(auto& p : tmp) p = scanFrontToBase*p;
             cloudsFront.push_back(tmp);
         }
 
@@ -104,10 +107,12 @@ int main(int argc, char** argv) {
             misc_tools::Cloud cloudFront, cloudRear, cloud;
             cloudFront = cloudsFront[i];
             cloudRear = cloudsRear[i];
-            misc_tools::joinClouds(cloudFront, cloudRear, cloud);
+            double sA = atan2(cloudFront.back().y(), cloudFront.back().x());
+            double eA = atan2(cloudFront.front().y(), cloudFront.front().x());
+            misc_tools::fillCloud(cloudFront, cloudRear, cloud, sA, eA);
             clouds.push_back(cloud);
         }
-        clouds = cloudsRear;
+        //clouds = cloudsRear;
     }
 
     int lastIdx = 1;
@@ -123,15 +128,8 @@ int main(int argc, char** argv) {
         }
 
         misc_tools::trans3DToTrans2D(gt3D, gt2D);
-        //for(auto& p : cloud) p = gt2D*p;
+        for(auto& p : cloud) p = gt2D*p;
         double oldAngle = -INFINITY;
-        for(auto& p : cloud){
-            double angle = atan2(p.y(), p.x());
-            if (angle < oldAngle) std::cout << "___OH NO!___";
-            std::cout << angle << "; ";
-            oldAngle = angle;
-        }
-        std::cout << std::endl << std::endl;
         transClouds.push_back(cloud);
     }
     bool exit = false;
@@ -149,11 +147,12 @@ int main(int argc, char** argv) {
             }
 
             misc_tools::trans3DToTrans2D(gt3D, gt2D);
-            //for(auto& p : cloud) p = gt2D*p;
+            for(auto& p : cloud) p = gt2D*p;
 
             double overlap = misc_tools::scan_overlap(transClouds.back(), cloud);
+            saveForPlot(cloudsFront[i], cloudsRear[i], cloud);
             std::cout << overlap << std::endl;
-            if(overlap < .75){
+            if(overlap < .6){
                 std::string dir = base_dir + "/" + 
                     std::to_string(lastIdx) + "_" + std::to_string(i);
                 misc_tools::scan_overlap_visualization(transClouds.back(), cloud, dir);
@@ -166,6 +165,7 @@ int main(int argc, char** argv) {
             }
         }
     }
+    //saveForPlot(cloudsFront[23], cloudsRear[23], clouds[23]);
     std::cout << "Graph size: " << graph.size() << std::endl;
 
     for(auto& n : graph){
@@ -173,4 +173,27 @@ int main(int argc, char** argv) {
     }
 
     return 0;
+}
+
+void saveForPlot(misc_tools::Cloud cloud1, misc_tools::Cloud cloud2, misc_tools::Cloud cloud3){
+    std::ofstream fileCloud1("front.txt");
+    for(auto& p: cloud1)
+        fileCloud1 << p.x() << " " << p.y() << "\n";
+    auto p = cloud1.front();
+    fileCloud1 << p.x() << " " << p.y() << "\n";
+    fileCloud1.close(); 
+
+    std::ofstream fileCloud2("rear.txt");
+    for(auto& p: cloud2)
+        fileCloud2 << p.x() << " " << p.y() << "\n";
+    p = cloud2.front();
+    fileCloud2 << p.x() << " " << p.y() << "\n";
+    fileCloud2.close(); 
+
+    std::ofstream fileCloud3("joined.txt");
+    for(auto& p: cloud3)
+        fileCloud3 << p.x() << " " << p.y() << "\n";
+    p = cloud3.front();
+    fileCloud3 << p.x() << " " << p.y() << "\n";
+    fileCloud3.close(); 
 }

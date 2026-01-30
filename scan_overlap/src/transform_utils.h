@@ -107,7 +107,8 @@ bool findGtTransform(const double scanTs,
 
 void trans3DToTrans2D(const Transform3& trans3D, Transform2& trans2D);
 
-void joinClouds(const Cloud& cloud1, const Cloud& cloud2, Cloud& joined);
+void fillCloud(const Cloud &cloud1, const Cloud &cloud2, Cloud &joined,
+               double startAngle, double endAngle);
 
 void computeErrors(const VectorTransform3& transformsRes,
                    const std::vector<float>& distancesRes,

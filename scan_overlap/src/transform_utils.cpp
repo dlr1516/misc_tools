@@ -343,14 +343,12 @@ void trans3DToTrans2D(const Transform3 &trans3D, Transform2 &trans2D){
                trans3D.linear().topLeftCorner<2,2>());
 }
 
-void joinClouds(const Cloud &cloud1, const Cloud &cloud2, Cloud &joined){
+void fillCloud(const Cloud &cloud1, const Cloud &cloud2, Cloud &joined,
+               double startAngle, double endAngle){
     joined.clear();
     joined = cloud1;
 
-    double startAngle = atan2(cloud1.front().y(), cloud1.front().x());
-    double endAngle = atan2(cloud1.back().y(), cloud1.back().x());
-
-    if(endAngle < startAngle){ //scan interval goes over pi/-pi
+    if(startAngle < endAngle){ //scan interval goes over pi/-pi
         for(auto& p : cloud2){
             double angle = atan2(p.y(),p.x());
             if(endAngle < angle < startAngle) joined.push_back(p);
@@ -359,8 +357,8 @@ void joinClouds(const Cloud &cloud1, const Cloud &cloud2, Cloud &joined){
     else{
         for(auto& p : cloud2){
             double angle = atan2(p.y(),p.x());
-            if((endAngle < angle && angle <= M_PI) || 
-                (-M_PI <= angle && angle < startAngle)) 
+            if((startAngle < angle && angle <= M_PI) || 
+                (-M_PI <= angle && angle < endAngle)) 
                 joined.push_back(p);
         }
 
