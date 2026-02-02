@@ -11,15 +11,14 @@
 
 //Quaternion: (.0, .0, 0.009603885349331175, 0.9999538816296465)
 misc_tools::Transform2 scanFrontToBase = 
-    Eigen::Rotation2Df(2.*std::atan2(0.009603885349331175, 0.9999538816296465)) *
-    Eigen::Translation2f(0.30455923000105006, -0.005976866498877387);
+    Eigen::Translation2f(0.30455923000105006, -0.005976866498877387) *
+    Eigen::Rotation2Df(2.*std::atan2(0.009603885349331175, 0.9999538816296465));
 //Quaternion: (.0, .0, 0.9999853067886563, -0.005420904610579566)
 misc_tools::Transform2 scanRearToBase = 
-    Eigen::Rotation2Df(2.*std::atan2(0.9999853067886563, -0.005420904610579566)) *
-    Eigen::Translation2f(-0.30272182866463804, -0.001624570483175795);
+    Eigen::Translation2f(-0.30272182866463804, -0.001624570483175795) *
+    Eigen::Rotation2Df(2.*std::atan2(0.9999853067886563, -0.005420904610579566));
 
 void saveForPlot(misc_tools::Cloud cloud1, misc_tools::Cloud cloud2, misc_tools::Cloud cloud3);
-
 
 int main(int argc, char** argv) {
     rofl::ParamMap params;
@@ -108,27 +107,39 @@ int main(int argc, char** argv) {
             cloudRear = cloudsRear[i];
             double sA = atan2(cloudFront.back().y(), cloudFront.back().x());
             double eA = atan2(cloudFront.front().y(), cloudFront.front().x());
-            misc_tools::fillCloud(cloudFront, cloudRear, cloud, sA, eA);
+            misc_tools::fillCloud(cloudFront, cloudRear, cloud, sA, eA);//NON GARANTISCE POLIGONO!!!!!
             clouds.push_back(cloud);
         }
         //clouds = cloudsRear;
     }
 
-    int lastIdx = 1;
+    int lastIdx = 100;
+    misc_tools::Transform2 lastTransf;
     graph.push_back(misc_tools::Node(lastIdx));
     {
         misc_tools::Cloud cloud = clouds[lastIdx];
-        double ts = timesScansFront[lastIdx];
-        misc_tools::Transform3 gt3D;
-        misc_tools::Transform2 gt2D;
-        if(!misc_tools::findGtTransform(ts, timesGt, transformsGt, gt3D)){
-            std::cout << "Couldn't find gt transform for first cloud!" << std::endl;
+        double tsF = timesScansFront[lastIdx];
+        double tsR = timesScansRear[lastIdx];
+        misc_tools::Transform3 gt3DF, gt3DR;
+        misc_tools::Transform2 gt2DF, gt2DR;
+
+        if(!misc_tools::findGtTransform(tsF, timesGt, transformsGt, gt3DF)){
+            std::cout << "Couldn't find gt transform!" << std::endl;
             return -1;
         }
+        misc_tools::trans3DToTrans2D(gt3DF, gt2DF);
 
-        misc_tools::trans3DToTrans2D(gt3D, gt2D);
-        for(auto& p : cloud) p = gt2D*p;
-        double oldAngle = -INFINITY;
+        if(!misc_tools::findGtTransform(tsR, timesGt, transformsGt, gt3DR)){
+            std::cout << "Couldn't find gt transform!" << std::endl;
+            return -1;
+        }
+        misc_tools::trans3DToTrans2D(gt3DR, gt2DR);
+
+        int lastF = cloudsFront[lastIdx].size();
+        for(int i = 0; i < cloud.size(); i++){
+            if(i < lastF)   cloud[i] = gt2DF*cloud[i];
+            else            cloud[i] = gt2DR*cloud[i];
+        }
         transClouds.push_back(cloud);
     }
     bool exit = false;
@@ -162,7 +173,7 @@ int main(int argc, char** argv) {
             double overlap = misc_tools::scan_overlap(transClouds.back(), cloud);
             saveForPlot(cloudsFront[i], cloudsRear[i], cloud);
             std::cout << overlap << std::endl;
-            if(overlap < .6){
+            if(overlap < .6 && overlap >= .1){
                 std::string dir = base_dir + "/" + 
                     std::to_string(lastIdx) + "_" + std::to_string(i);
                 misc_tools::scan_overlap_visualization(transClouds.back(), cloud, dir);
@@ -176,6 +187,8 @@ int main(int argc, char** argv) {
         }
     }
     std::cout << "Graph size: " << graph.size() << std::endl;
+
+    saveForPlot(cloudsFront[298], cloudsRear[298], clouds[298]);
 
     for(auto& n : graph){
         std::cout << "id: " << n.id << std::endl;

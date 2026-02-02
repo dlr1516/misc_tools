@@ -271,8 +271,8 @@ void scanToCloud(const Scan &scan, const LaserSpecs &ls, Cloud &cloud) {
     float angle = stof(ls.at("angle_min"));
     float rangeMin = stof(ls.at("range_min"));
     float rangeMax = stof(ls.at("range_max"));
-    for(auto& range : scan){
-        if (range >= rangeMin && rangeMax >= range){
+    for(const auto& range : scan){
+        if (range > rangeMin && range < rangeMax){
             Vector2 point(range*cosf(angle), range*sinf(angle));
             cloud.push_back(point);
         }
