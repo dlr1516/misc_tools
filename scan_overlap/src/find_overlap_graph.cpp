@@ -26,6 +26,7 @@ int main(int argc, char** argv) {
     rofl::ParamMap params;
     std::string filenameCfg, filenameGt, 
         filenameScansFront, filenameScansRear, filenameLaser;
+    int startIdx;
 
     // Reads params from command line
     params.read(argc, argv);
@@ -36,6 +37,7 @@ int main(int argc, char** argv) {
     params.getParam<std::string>("scansFront", filenameScansFront, std::string(""));
     params.getParam<std::string>("scansRear", filenameScansRear, std::string(""));
     params.getParam<std::string>("laser", filenameLaser, std::string(""));
+    params.getParam<int>("startIdx", startIdx, 100);
 
     std::cout << "\nParams:" << std::endl;
     params.write(std::cout);
@@ -60,7 +62,7 @@ int main(int argc, char** argv) {
     for(auto & [k, v] : laserSpecs) 
         std::cout << k << ": " << v << std::endl;
     std::cout << std::endl;
-    scanDelta = stod(laserSpecs["scan_time"]);
+
     // Reads the ground truth file
     if(!misc_tools::readTimePosQuatFile(filenameGt, timesGt, transformsGt)){
         std::cout << "Couldn't read ground truth poses from \""
@@ -117,7 +119,7 @@ int main(int argc, char** argv) {
        clouds = cloudsFront;
     }
 
-    int lastIdx = 100;
+    int lastIdx = startIdx;
     graph.push_back(misc_tools::Node(lastIdx));
     {
         misc_tools::Cloud cloud = clouds[lastIdx];
@@ -180,12 +182,19 @@ int main(int argc, char** argv) {
             double overlap = misc_tools::scan_overlap(transClouds.back(), cloud);
 
             std::cout << overlap << std::endl;
-            if(overlap < .65 && overlap >= .1){
+            if(overlap < .7 && overlap > .1){
+                misc_tools::Node n(i);
                 std::string dir = base_dir + "/" + 
                     std::to_string(lastIdx) + "_" + std::to_string(i);
                 misc_tools::scan_overlap_visualization(transClouds.back(), cloud, dir);
 
-                graph.push_back(misc_tools::Node(i));
+                for(int j = 0; j < transClouds.size(); j++){
+                    auto tCloud = transClouds[j];
+                    if(misc_tools::scan_overlap(tCloud, cloud) > .4)
+                        n.adj.push_back(graph[j].id);
+                }
+
+                graph.push_back(n);
                 transClouds.push_back(cloud);
                 lastIdx=i;
                 exit=false;
@@ -199,8 +208,12 @@ int main(int argc, char** argv) {
 
     for(int i = 0; i < graph.size(); i++){
         auto n = graph[i];
-        std::cout << "id: " << n.id  << std::endl;
+        std::cout << "id: " << n.id << ", adj: ";
+        for(auto& e : n.adj) std::cout << e << ", ";
+        std::cout << std::endl;
     }
+
+    misc_tools::draw_graph(graph, transClouds);
 
     return 0;
 }

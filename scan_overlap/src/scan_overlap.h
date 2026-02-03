@@ -6,6 +6,7 @@
 #include <boost/geometry/geometries/point_xy.hpp>
 #include <boost/geometry/io/io.hpp>
 #include <boost/geometry/io/wkt/wkt.hpp>
+#include <boost/math/tools/color_maps.hpp>
 #include <filesystem>
 
 #include "transform_utils.h"
@@ -25,6 +26,8 @@ double scan_overlap(const std::vector<Vector2>& p1,
 double scan_overlap_visualization(const std::vector<Vector2>& p1,
                                   const std::vector<Vector2>& p2,
                                   std::string dir);
+
+void draw_graph(const Graph& graph, const std::vector<Cloud>& clouds);
 
 }  // namespace misc_tools
 

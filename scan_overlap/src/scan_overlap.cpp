@@ -144,4 +144,42 @@ double scan_overlap_visualization(const std::vector<Vector2>& scan1,
     return scan_overlap_visualization(poly1, poly2, dir);
 }
 
+void draw_graph(const Graph &graph, const std::vector<Cloud> &clouds){
+    std::function<std::array<double, 3>(double)> cmap = boost::math::tools::viridis<double>;
+    double invSize = 1./clouds.size();
+    std::vector<Polygon> polys;
+    std::vector<std::array<uint8_t, 4UL>> colors;
+
+    std::ofstream svg("graph.svg");
+    boost::geometry::svg_mapper<Point> mapper(svg, 800, 800);
+    for(int i = 0; i < clouds.size(); i++){
+        Cloud cloud = clouds[i];
+        std::array<uint8_t, 4UL> c = boost::math::tools::to_8bit_rgba(cmap(i*invSize));
+        Polygon poly;
+
+        for (const auto& p : cloud) 
+            boost::geometry::append(poly, Point(static_cast<double>(p.x()),
+                                                static_cast<double>(p.y())));
+        auto p = cloud.front();
+        boost::geometry::append(poly, Point(static_cast<double>(p.x()),
+                                                static_cast<double>(p.y())));
+        polys.push_back(poly);
+        colors.push_back(c);
+        mapper.add(poly);
+    }
+
+    for(int i = 0; i < polys.size(); i++){
+        Node n = graph[i];
+        auto c = colors[i];
+        auto p = polys[i];
+        std::string colorF = "(" + std::to_string(c[0]) + 
+            "," + std::to_string(c[1]) + "," + std::to_string(c[2]) + ")";
+        std::string colorS = "(" + std::to_string((int) c[0]*.75) + "," + 
+            std::to_string((int) c[1]*.75) + "," + std::to_string((int) c[2]*.75) + ")";
+        mapper.map(p, "fill-opacity:0.5;fill:rgb" + colorF + 
+                ";stroke:rgb" + colorS + ";stroke-width:2");
+        mapper.text(Point(.0, .0), std::to_string(n.id), "fill:rgb" + colorF + ";fill-opacity:1;stroke:none", .0, i*15);
+    }
+}
+
 }  // namespace misc_tools
