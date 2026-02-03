@@ -347,11 +347,13 @@ void fillCloud(const Cloud &cloud1, const Cloud &cloud2, Cloud &joined,
                double startAngle, double endAngle){
     joined.clear();
     joined = cloud1;
+    startAngle += (M_PI/180.);
+    endAngle -= (M_PI/360.);
 
-    if(startAngle < endAngle){ //scan interval goes over pi/-pi
+    if(startAngle < endAngle){ //fill interval doesn't go over pi/-pi
         for(auto& p : cloud2){
             double angle = atan2(p.y(),p.x());
-            if(endAngle < angle < startAngle) joined.push_back(p);
+            if(angle > startAngle && angle < endAngle) joined.push_back(p);
         } 
     }
     else{
