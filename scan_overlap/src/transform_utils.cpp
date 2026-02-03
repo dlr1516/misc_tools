@@ -48,6 +48,22 @@ bool readTimePosQuatLine(std::istream& in, double& time, Transform3& transform) 
     }
 }
 
+bool readTimePosQuatCovLine(std::istream &in, double &time, Transform3 &transform){
+    float x, y, z, qx, qy, qz, qw;
+    std::string line;
+    std::getline(in, line);
+    std::stringstream ls(line);
+    if (ls >> time >> x >> y >> z >> qx >> qy >> qz >> qw) {
+        Eigen::Quaternionf q(qw, qx, qy, qz);
+        Eigen::Translation3f v(x, y, z);
+        transform = v * q;
+        return true;
+    } else {
+        std::cerr << "Cannot read line in format: time x y z qx qy qz qw"
+                  << std::endl;
+        return false;
+    }}
+
 bool readTimeRangesLine(std::istream &in, double &time, Scan &ranges)
 {
     float r;
@@ -149,6 +165,22 @@ bool readTimePosQuatFile(const std::string& filename,
     file.close();
     return true;
 }
+
+bool readTimePosQuatCovFile(const std::string &filename, std::vector<double> &times, VectorTransform3 &transforms){
+    Transform3 tr;
+    double t;
+    std::ifstream file(filename);
+    if (!file) {
+        std::cerr << "Cannot open transformation file \"" << filename << "\""
+                  << std::endl;
+        return false;
+    }
+    while (readTimePosQuatCovLine(file, t, tr)) {
+        times.push_back(t);
+        transforms.push_back(tr);
+    }
+    file.close();
+    return true;}
 
 bool readTimeRangesFile(const std::string &filename, std::vector<double> &times, std::vector<Scan> &ranges)
 {
@@ -339,8 +371,8 @@ bool findGtTransform(const double scanTs,
 }
 
 void trans3DToTrans2D(const Transform3 &trans3D, Transform2 &trans2D){
-    trans2D = (Eigen::Translation2f(trans3D.translation().topRows<2>()) *
-               trans3D.linear().topLeftCorner<2,2>());
+    trans2D.linear() = trans3D.linear().topLeftCorner<2,2>();
+    trans2D.translation() = trans3D.translation().topRows<2>();
 }
 
 void fillCloud(const Cloud &cloud1, const Cloud &cloud2, Cloud &joined,

@@ -19,6 +19,8 @@ using Transform3 = Eigen::Affine3f;
 using Transform2 = Eigen::Affine2f;
 using VectorTransform3 =
     std::vector<Transform3, Eigen::aligned_allocator<Transform3> >;
+using VectorTransform2 =
+    std::vector<Transform2, Eigen::aligned_allocator<Transform2> >;
 using Scan = std::vector<float>;
 using LaserSpecs = std::map<std::string, std::string>;
 using Cloud = std::vector<Vector2>;
@@ -48,6 +50,8 @@ bool readTimeTransformLine(std::istream& in,
 
 bool readTimePosQuatLine(std::istream& in, double& time, Transform3& transform);
 
+bool readTimePosQuatCovLine(std::istream& in, double& time, Transform3& transform);
+
 bool readTimeRangesLine(std::istream& in, double& time, Scan& ranges);
 
 bool readLaserSpecsLine(std::istream& in, std::string& key, std::string& val);
@@ -60,6 +64,10 @@ bool readTimeTransformFile(const std::string& filename,
                            VectorTransform3& transforms);
 
 bool readTimePosQuatFile(const std::string& filename,
+                         std::vector<double>& times,
+                         VectorTransform3& transforms);
+
+bool readTimePosQuatCovFile(const std::string& filename,
                          std::vector<double>& times,
                          VectorTransform3& transforms);
 

@@ -8,7 +8,6 @@
 
 #define GRAPH_SIZE 10
 
-
 //Quaternion: (.0, .0, 0.009603885349331175, 0.9999538816296465)
 misc_tools::Transform2 scanFrontToBase = 
     Eigen::Translation2f(0.30455923000105006, -0.005976866498877387) *
@@ -22,9 +21,15 @@ misc_tools::Transform2 scanRearToScanFront = scanFrontToBase.inverse() * scanRea
 
 void saveForPlot(misc_tools::Cloud cloud1, misc_tools::Cloud cloud2, misc_tools::Cloud cloud3);
 
+void saveGraph( const misc_tools::Graph& graph, 
+                const std::vector<misc_tools::Cloud>& clouds, 
+                const misc_tools::VectorTransform2& gts,
+                const misc_tools::VectorTransform2& odoms,
+                const std::string& fileName);
+
 int main(int argc, char** argv) {
     rofl::ParamMap params;
-    std::string filenameCfg, filenameGt, 
+    std::string filenameCfg, filenameGt, filenameOdom,
         filenameScansFront, filenameScansRear, filenameLaser;
     int startIdx;
 
@@ -37,15 +42,18 @@ int main(int argc, char** argv) {
     params.getParam<std::string>("scansFront", filenameScansFront, std::string(""));
     params.getParam<std::string>("scansRear", filenameScansRear, std::string(""));
     params.getParam<std::string>("laser", filenameLaser, std::string(""));
+    params.getParam<std::string>("odometry", filenameOdom, std::string(""));
     params.getParam<int>("startIdx", startIdx, 100);
 
     std::cout << "\nParams:" << std::endl;
     params.write(std::cout);
     std::cout << "-------\n" << std::endl;
 
-    std::vector<double> timesGt, timesScansRear,timesScansFront;
+    std::vector<double> timesGt, timesScansRear,
+                        timesScansFront, timesOdom;
     misc_tools::LaserSpecs laserSpecs;
-    misc_tools::VectorTransform3 transformsGt;
+    misc_tools::VectorTransform3 transformsGt, transformsOdom;
+    misc_tools::VectorTransform2 gtGraph, odomGraph;
     std::vector<misc_tools::Cloud> clouds, transClouds,
                                    cloudsFront, cloudsRear;
     std::string base_dir = "./poly_img";
@@ -71,6 +79,15 @@ int main(int argc, char** argv) {
     }
     std::cout << "Read " << transformsGt.size() << " ground truth poses from \""
               << filenameGt << "\"" << std::endl;
+
+    // Reads odom file
+    if(!misc_tools::readTimePosQuatCovFile(filenameOdom, timesOdom, transformsOdom)){
+        std::cout << "Couldn't read odometry from \""
+                  << filenameOdom << "\"" << std::endl;
+        return -1;
+    }
+    std::cout << "Read " << transformsGt.size() << " odometry poses from \""
+              << filenameOdom << "\"" << std::endl;
 
     {
         std::vector<misc_tools::Scan> rangesFront, rangesRear;
@@ -125,14 +142,20 @@ int main(int argc, char** argv) {
         misc_tools::Cloud cloud = clouds[lastIdx];
         double tsF = timesScansFront[lastIdx];
         //double tsR = timesScansRear[lastIdx];
-        misc_tools::Transform3 gt3DF, gt3DR;
-        misc_tools::Transform2 gt2DF, gt2DR;
+        misc_tools::Transform3 gt3DF, gt3DR, odom3D;
+        misc_tools::Transform2 gt2DF, gt2DR, odom2D;
 
         if(!misc_tools::findGtTransform(tsF, timesGt, transformsGt, gt3DF)){
             std::cout << "Couldn't find gt transform!" << std::endl;
             return -1;
         }
         misc_tools::trans3DToTrans2D(gt3DF, gt2DF);
+
+        if(!misc_tools::findGtTransform(tsF, timesOdom, transformsOdom, odom3D)){
+            std::cout << "Couldn't find odom transform!" << std::endl;
+            return -1;
+        }
+        misc_tools::trans3DToTrans2D(odom3D, odom2D);
 
         /*if(!misc_tools::findGtTransform(tsR, timesGt, transformsGt, gt3DR)){
             std::cout << "Couldn't find gt transform!" << std::endl;
@@ -147,6 +170,8 @@ int main(int argc, char** argv) {
         }*/
         for(auto& p : cloud) p = gt2DF*p;
         transClouds.push_back(cloud);
+        odomGraph.push_back(odom2D);
+        gtGraph.push_back(gt2DF);
     }
 
     bool exit = false;
@@ -156,14 +181,20 @@ int main(int argc, char** argv) {
             misc_tools::Cloud cloud = clouds[i];
             double tsF = timesScansFront[i];
             //double tsR = timesScansRear[i];
-            misc_tools::Transform3 gt3DF, gt3DR;
-            misc_tools::Transform2 gt2DF, gt2DR;
+            misc_tools::Transform3 gt3DF, gt3DR, odom3D;
+            misc_tools::Transform2 gt2DF, gt2DR, odom2D;
 
             if(!misc_tools::findGtTransform(tsF, timesGt, transformsGt, gt3DF)){
                 std::cout << "Couldn't find gt transform!" << std::endl;
                 break;
             }
             misc_tools::trans3DToTrans2D(gt3DF, gt2DF);
+
+            if(!misc_tools::findGtTransform(tsF, timesOdom, transformsOdom, odom3D)){
+            std::cout << "Couldn't find odom transform!" << std::endl;
+            return -1;
+            }
+            misc_tools::trans3DToTrans2D(odom3D, odom2D);
 
             /*if(!misc_tools::findGtTransform(tsR, timesGt, transformsGt, gt3DR)){
                 std::cout << "Couldn't find gt transform!" << std::endl;
@@ -188,14 +219,17 @@ int main(int argc, char** argv) {
                     std::to_string(lastIdx) + "_" + std::to_string(i);
                 misc_tools::scan_overlap_visualization(transClouds.back(), cloud, dir);
 
-                for(int j = 0; j < transClouds.size(); j++){
+                for(int j = 0; j < transClouds.size()-1; j++){
                     auto tCloud = transClouds[j];
                     if(misc_tools::scan_overlap(tCloud, cloud) > .4)
                         n.adj.push_back(graph[j].id);
                 }
+                n.adj.push_back(graph.back().id); //adding previous node as adj, guarantees connected graph
 
                 graph.push_back(n);
                 transClouds.push_back(cloud);
+                odomGraph.push_back(odom2D);
+                gtGraph.push_back(gt2DF);
                 lastIdx=i;
                 exit=false;
                 break;
@@ -214,6 +248,8 @@ int main(int argc, char** argv) {
     }
 
     misc_tools::draw_graph(graph, transClouds);
+
+    saveGraph(graph, cloudsFront, gtGraph, odomGraph, "graph_" + std::to_string(startIdx) + ".txt");
 
     return 0;
 }
@@ -239,4 +275,36 @@ void saveForPlot(misc_tools::Cloud cloud1, misc_tools::Cloud cloud2, misc_tools:
     p = cloud3.front();
     fileCloud3 << p.x() << " " << p.y() << "\n";
     fileCloud3.close(); 
+}
+
+void saveGraph( const misc_tools::Graph& graph, 
+                const std::vector<misc_tools::Cloud>& clouds, 
+                const misc_tools::VectorTransform2& gts,
+                const misc_tools::VectorTransform2& odoms,
+                const std::string& fileName){
+    std::ofstream f(fileName);
+    f << "# format\n" <<
+         "# NODE id poseX poseY poseTheta odomX odomY odomTheta x0 y0 ... xN yN\n" <<
+         "# EDGE idSrc idDst\n";
+    for(int i = 0; i < graph.size(); i++){
+        misc_tools::Node n = graph[i];
+        misc_tools::Cloud cloud = clouds[n.id];
+
+        misc_tools::Transform2 gt = gts[i];
+        Eigen::Translation2f gtT = Eigen::Translation2f(gt.translation());
+        double gtA = Eigen::Rotation2Df(gt.linear()).angle();
+
+        misc_tools::Transform2 odom = odoms[i];
+        Eigen::Translation2f odomT = Eigen::Translation2f(odom.translation());
+        double odomA = Eigen::Rotation2Df(odom.linear()).angle();
+
+        f << "NODE " << n.id << " " << gtT.x() << " " << gtT.y() << " " << gtA << " " <<
+             odomT.x() << " " << odomT.y() << " " << odomA << " ";
+
+        for(const auto& p : cloud) f << p.x() << " " << p.y() << " ";
+        
+        f << "\n";
+        
+        for(int a : n.adj) f << "EDGE " << a << " " << n.id << "\n";
+    }
 }
