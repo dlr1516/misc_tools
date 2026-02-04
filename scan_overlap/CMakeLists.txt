@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.0.2)
 project(scan_overlap)
 
+set(CMAKE_BUILD_TYPE Debug)
+
 # Eigen
 find_package(Eigen3 REQUIRED)
 include_directories(${EIGEN3_INCLUDE_DIR})
