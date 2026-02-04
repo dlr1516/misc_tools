@@ -19,7 +19,7 @@ void surfInitMatchImagePair(Mat &img_1, Mat &img_2,
     double t = (double) getTickCount();
     //-- Step 1: Detect the keypoints using SURF Detector
     int minHessian = 400;
-    SurfFeatureDetector detector(minHessian);
+    cv::SurfFeatureDetector detector(minHessian);
     detector.detect(img_1, keypoints_1);
     detector.detect(img_2, keypoints_2);
     if (keypoints_1.size() < 3 || keypoints_2.size() < 3)
@@ -142,16 +142,16 @@ void visualizeVectorField(std::vector<KeyPoint> &keypoints_1,
 }
 
 void plotArrow(Mat &img, Point2f pHead, Point2f pTail, double arrowLen, double diffAngle) {
-    CvPoint p;
+    cv::Point p;
     double angle = atan2((double) pTail.y - pHead.y, (double) pTail.x - pHead.x);
 
-    line(img, pTail, pHead, CV_RGB(0, 255, 0), 2, 8);
+    cv::line(img, pTail, pHead, cv::CV_RGB(0, 255, 0), 2, 8);
 
     p.x = (int) (pHead.x + arrowLen * cos(angle + diffAngle));
     p.y = (int) (pHead.y + arrowLen * sin(angle + diffAngle));
-    line(img, p, pHead, CV_RGB(0, 255, 0), 1, CV_AA, 0);
+    cv::line(img, p, pHead, cv::CV_RGB(0, 255, 0), 1, cv::CV_AA, 0);
 
     p.x = (int) (pHead.x + arrowLen * cos(angle - diffAngle));
     p.y = (int) (pHead.y + arrowLen * sin(angle - diffAngle));
-    line(img, p, pHead, CV_RGB(0, 255, 0), 1, CV_AA, 0);
+    line(img, p, pHead, cv::CV_RGB(0, 255, 0), 1, cv::CV_AA, 0);
 }

@@ -40,5 +40,15 @@ add_executable(find_overlap_graph
   src/scan_overlap.cpp
   src/transform_utils.cpp
 )
-target_link_libraries(find_overlap_graph ${Boost_LIBRARIES} ${rofl_LIBRARIES})
-target_compile_features(find_overlap_graph PRIVATE cxx_std_17)
+target_link_libraries(find_overlap_graph ${Boost_LIBRARIES} ${rofl_LIBRARIES} opencv_core)
+target_compile_features(find_overlap_graph PRIVATE cxx_std_17 )
+
+add_executable(run_graph_tests
+  app/run_graph_tests.cpp
+  src/scan_overlap.cpp
+  src/transform_utils.cpp
+  src/thirdparty/libvfc/vfc.cpp
+  src/thirdparty/libicp/icp.cpp
+)
+target_link_libraries(run_graph_tests ${Boost_LIBRARIES} ${rofl_LIBRARIES} icp vfc opencv_core)
+target_compile_features(run_graph_tests PRIVATE cxx_std_17)
