@@ -12,16 +12,16 @@
 
 namespace misc_tools {
 
-using Vector3 = Eigen::Vector3f;
-using Vector2 = Eigen::Vector2f;
-using Quaternion = Eigen::Quaternionf;
-using Transform3 = Eigen::Affine3f;
-using Transform2 = Eigen::Affine2f;
+using Vector3 = Eigen::Vector3d;
+using Vector2 = Eigen::Vector2d;
+using Quaternion = Eigen::Quaterniond;
+using Transform3 = Eigen::Affine3d;
+using Transform2 = Eigen::Affine2d;
 using VectorTransform3 =
     std::vector<Transform3, Eigen::aligned_allocator<Transform3> >;
 using VectorTransform2 =
     std::vector<Transform2, Eigen::aligned_allocator<Transform2> >;
-using Scan = std::vector<float>;
+using Scan = std::vector<double>;
 using LaserSpecs = std::map<std::string, std::string>;
 using Cloud = std::vector<Vector2>;
 
@@ -36,16 +36,16 @@ using Graph = std::vector<Node>;
 struct ErrorData {
     int firstIdx;
     int lastIdx;
-    float length;
-    float errTransl;
-    float errRot;
+    double length;
+    double errTransl;
+    double errRot;
 };
 using VectorErrorData = std::vector<ErrorData>;
 
 bool readTransformLine(std::istream& in, Transform3& transform);
 
 bool readTimeTransformLine(std::istream& in,
-                           float& time,
+                           double& time,
                            Transform3& transform);
 
 bool readTimePosQuatLine(std::istream& in, double& time, Transform3& transform);
@@ -60,7 +60,7 @@ bool readTransformFile(const std::string& filename,
                        VectorTransform3& transforms);
 
 bool readTimeTransformFile(const std::string& filename,
-                           std::vector<float>& times,
+                           std::vector<double>& times,
                            VectorTransform3& transforms);
 
 bool readTimePosQuatFile(const std::string& filename,
@@ -79,29 +79,30 @@ bool readLaserSpecsFile(const std::string& filename,
                             LaserSpecs& laserSpecs);
 
 void writePoseQuat(std::ostream& out,
-                   const float& t,
-                   const Eigen::Affine3f& pose);
+                   const double& t,
+                   const Transform3& pose);
 
-void writePoseMat(std::ostream& out, const Eigen::Affine3f& pose);
+void writePoseMat(std::ostream& out, const Transform3& pose);
 
 void computeDistances(const VectorTransform3& transforms,
-                      std::vector<float>& distances);
+                      std::vector<double>& distances);
 
-int findDistanceIdx(const std::vector<float>& distances,
-                    float len,
-                    float& factor);
+int findDistanceIdx(const std::vector<double>& distances,
+                    double len,
+                    double& factor);
 
-int findDistanceIncrIdx(const std::vector<float>& distances,
+int findDistanceIncrIdx(const std::vector<double>& distances,
                         int startIdx,
-                        float lenStep);
+                        double lenStep,
+                        double& factor);
 
 void scanToCloud(const Scan& scan, const LaserSpecs& ls, Cloud& cloud);
 
 void orderCloudRadially(Cloud& cloud);
 
-float computeTranslationNorm(const Transform3& transformDelta);
+double computeTranslationNorm(const Transform3& transformDelta);
 
-float computeRotationAngle(const Transform3& transformDelta);
+double computeRotationAngle(const Transform3& transformDelta);
 
 void interpolateTransform(const Transform3& transf0,
                           const Transform3& transf1,
@@ -119,19 +120,19 @@ void fillCloud(const Cloud &cloud1, const Cloud &cloud2, Cloud &joined,
                double startAngle, double endAngle);
 
 void computeErrors(const VectorTransform3& transformsRes,
-                   const std::vector<float>& distancesRes,
+                   const std::vector<double>& distancesRes,
                    const VectorTransform3& transformsGt,
-                   const std::vector<float>& distancesGt,
-                   float lenSeg,
-                   float lenStep,
+                   const std::vector<double>& distancesGt,
+                   double lenSeg,
+                   double lenStep,
                    VectorErrorData& errors);
 
 void computeErrorsInterp(const VectorTransform3& transformsRes,
-                         const std::vector<float>& distancesRes,
+                         const std::vector<double>& distancesRes,
                          const VectorTransform3& transformsGt,
-                         const std::vector<float>& distancesGt,
-                         float lenSeg,
-                         float lenStep,
+                         const std::vector<double>& distancesGt,
+                         double lenSeg,
+                         double lenStep,
                          VectorErrorData& errors);
 
 }  // namespace misc_tools

@@ -10,12 +10,12 @@
 
 //Quaternion: (.0, .0, 0.009603885349331175, 0.9999538816296465)
 misc_tools::Transform2 scanFrontToBase = 
-    Eigen::Translation2f(0.30455923000105006, -0.005976866498877387) *
-    Eigen::Rotation2Df(2.*std::atan2(0.009603885349331175, 0.9999538816296465));
+    Eigen::Translation2d(0.30455923000105006, -0.005976866498877387) *
+    Eigen::Rotation2Dd(2.*std::atan2(0.009603885349331175, 0.9999538816296465));
 //Quaternion: (.0, .0, 0.9999853067886563, -0.005420904610579566)
 misc_tools::Transform2 scanRearToBase = 
-    Eigen::Translation2f(-0.30272182866463804, -0.001624570483175795) *
-    Eigen::Rotation2Df(2.*std::atan2(0.9999853067886563, -0.005420904610579566));
+    Eigen::Translation2d(-0.30272182866463804, -0.001624570483175795) *
+    Eigen::Rotation2Dd(2.*std::atan2(0.9999853067886563, -0.005420904610579566));
 
 misc_tools::Transform2 scanRearToScanFront = scanFrontToBase.inverse() * scanRearToBase;
 
@@ -291,12 +291,12 @@ void saveGraph( const misc_tools::Graph& graph,
         misc_tools::Cloud cloud = clouds[n.id];
 
         misc_tools::Transform2 gt = gts[i];
-        Eigen::Translation2f gtT = Eigen::Translation2f(gt.translation());
-        double gtA = Eigen::Rotation2Df(gt.linear()).angle();
+        Eigen::Translation2d gtT = Eigen::Translation2d(gt.translation());
+        double gtA = Eigen::Rotation2Dd(gt.linear()).angle();
 
         misc_tools::Transform2 odom = odoms[i];
-        Eigen::Translation2f odomT = Eigen::Translation2f(odom.translation());
-        double odomA = Eigen::Rotation2Df(odom.linear()).angle();
+        Eigen::Translation2d odomT = Eigen::Translation2d(odom.translation());
+        double odomA = Eigen::Rotation2Dd(odom.linear()).angle();
 
         f << "NODE " << n.id << " " << gtT.x() << " " << gtT.y() << " " << gtA << " " <<
              odomT.x() << " " << odomT.y() << " " << odomA << " ";

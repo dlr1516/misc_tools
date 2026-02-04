@@ -3,7 +3,7 @@
 namespace misc_tools {
 
 bool readTransformLine(std::istream& in, Transform3& transform) {
-    std::array<float, 12> values;
+    std::array<double, 12> values;
     if (in >> values[0] >> values[1] >> values[2] >> values[3] >> values[4] >>
         values[5] >> values[6] >> values[7] >> values[8] >> values[9] >>
         values[10] >> values[11]) {
@@ -22,7 +22,7 @@ bool readTransformLine(std::istream& in, Transform3& transform) {
 }
 
 bool readTimeTransformLine(std::istream& in,
-                           float& time,
+                           double& time,
                            Transform3& transform) {
     if ((in >> time) && readTransformLine(in, transform)) {
         return true;
@@ -35,10 +35,10 @@ bool readTimeTransformLine(std::istream& in,
 }
 
 bool readTimePosQuatLine(std::istream& in, double& time, Transform3& transform) {
-    float x, y, z, qx, qy, qz, qw;
+    double x, y, z, qx, qy, qz, qw;
     if (in >> time >> x >> y >> z >> qx >> qy >> qz >> qw) {
-        Eigen::Quaternionf q(qw, qx, qy, qz);
-        Eigen::Translation3f v(x, y, z);
+        Quaternion q(qw, qx, qy, qz);
+        Eigen::Translation3d v(x, y, z);
         transform = v * q;
         return true;
     } else {
@@ -49,13 +49,13 @@ bool readTimePosQuatLine(std::istream& in, double& time, Transform3& transform) 
 }
 
 bool readTimePosQuatCovLine(std::istream &in, double &time, Transform3 &transform){
-    float x, y, z, qx, qy, qz, qw;
+    double x, y, z, qx, qy, qz, qw;
     std::string line;
     std::getline(in, line);
     std::stringstream ls(line);
     if (ls >> time >> x >> y >> z >> qx >> qy >> qz >> qw) {
-        Eigen::Quaternionf q(qw, qx, qy, qz);
-        Eigen::Translation3f v(x, y, z);
+        Quaternion q(qw, qx, qy, qz);
+        Eigen::Translation3d v(x, y, z);
         transform = v * q;
         return true;
     } else {
@@ -66,7 +66,7 @@ bool readTimePosQuatCovLine(std::istream &in, double &time, Transform3 &transfor
 
 bool readTimeRangesLine(std::istream &in, double &time, Scan &ranges)
 {
-    float r;
+    double r;
     std::string line;
     std::getline(in, line);
     std::stringstream ls(line);
@@ -88,7 +88,7 @@ bool readTimeRangesLine(std::istream &in, double &time, Scan &ranges)
 
 bool readLaserSpecsLine(std::istream &in, std::string &key, std::string &val)
 {
-    float r;
+    double r;
     if (!(in >> key >> val)) {
         std::cerr << "Cannot read line in format: key value"
                   << std::endl;
@@ -101,7 +101,7 @@ bool readLaserSpecsLine(std::istream &in, std::string &key, std::string &val)
 
 bool readCalibLine(std::istream& in,
                    std::string& label,
-                   Eigen::Affine3f& transform) {
+                   Transform3& transform) {
     if ((in >> label) && readTransformLine(in, transform)) {
         return true;
     } else {
@@ -129,10 +129,10 @@ bool readTransformFile(const std::string& filename,
 }
 
 bool readTimeTransformFile(const std::string& filename,
-                           std::vector<float>& times,
+                           std::vector<double>& times,
                            VectorTransform3& transforms) {
     Transform3 tr;
-    float t;
+    double t;
     std::ifstream file(filename);
     if (!file) {
         std::cerr << "Cannot open transformation file \"" << filename << "\""
@@ -221,17 +221,17 @@ bool readLaserSpecsFile(const std::string &filename, LaserSpecs &laserSpecs)
 }
 
 void writePoseQuat(std::ostream& out,
-                   const float& t,
-                   const Eigen::Affine3f& pose) {
-    Eigen::Vector3f transl = pose.translation();
-    Eigen::Quaternionf quat(
+                   const double& t,
+                   Transform3& pose) {
+    Vector3 transl = pose.translation();
+    Quaternion quat(
         pose.rotation());  // Eigen coefficients order [x, y, z, w]
     out << t << " " << transl(0) << " " << transl(1) << " " << transl(2) << " "
         << quat.coeffs()(0) << " " << quat.coeffs()(1) << " "
         << quat.coeffs()(2) << " " << quat.coeffs()(3) << "\n";
 }
 
-void writePoseMat(std::ostream& out, const Eigen::Affine3f& pose) {
+void writePoseMat(std::ostream& out, const Transform3& pose) {
     out << pose.matrix()(0, 0) << " " << pose.matrix()(0, 1) << " "
         << pose.matrix()(0, 2) << " " << pose.matrix()(0, 3) << " "
         << pose.matrix()(1, 0) << " " << pose.matrix()(1, 1) << " "
@@ -242,7 +242,7 @@ void writePoseMat(std::ostream& out, const Eigen::Affine3f& pose) {
 }
 
 void computeDistances(const VectorTransform3& transforms,
-                      std::vector<float>& distances) {
+                      std::vector<double>& distances) {
     if (transforms.empty()) {
         return;
     }
@@ -255,9 +255,9 @@ void computeDistances(const VectorTransform3& transforms,
     }
 }
 
-int findDistanceIdx(const std::vector<float>& distances,
-                    float len,
-                    float& factor) {
+int findDistanceIdx(const std::vector<double>& distances,
+                    double len,
+                    double& factor) {
     auto it = lower_bound(distances.begin(), distances.end(), len);
     factor = 0.0;
     if (it == distances.end()) {
@@ -281,14 +281,14 @@ int findDistanceIdx(const std::vector<float>& distances,
     return (int)std::distance(distances.begin(), itPrev);
 }
 
-int findDistanceIncrIdx(const std::vector<float>& distances,
+int findDistanceIncrIdx(const std::vector<double>& distances,
                         int startIdx,
-                        float lenStep,
-                        float& factor) {
+                        double lenStep,
+                        double& factor) {
     if (startIdx < 0 || startIdx >= (int)distances.size()) {
         return distances.size();
     }
-    float len = distances[startIdx] + lenStep;
+    double len = distances[startIdx] + lenStep;
     auto it = lower_bound(distances.begin() + startIdx, distances.end(), len);
     factor = 0.0;
     if (it != distances.begin()) {
@@ -299,13 +299,13 @@ int findDistanceIncrIdx(const std::vector<float>& distances,
 }
 
 void scanToCloud(const Scan &scan, const LaserSpecs &ls, Cloud &cloud) {
-    float inc = stof(ls.at("angle_increment"));
-    float angle = stof(ls.at("angle_min"));
-    float rangeMin = stof(ls.at("range_min"));
-    float rangeMax = stof(ls.at("range_max"));
+    double inc = stod(ls.at("angle_increment"));
+    double angle = stod(ls.at("angle_min"));
+    double rangeMin = stod(ls.at("range_min"));
+    double rangeMax = stod(ls.at("range_max"));
     for(const auto& range : scan){
         if (range > rangeMin && range < rangeMax){
-            Vector2 point(range*cosf(angle), range*sinf(angle));
+            Vector2 point(range*cos(angle), range*sin(angle));
             cloud.push_back(point);
         }
         angle+=inc;
@@ -321,17 +321,17 @@ void orderCloudRadially(Cloud &cloud){
     });
 }
 
-float computeTranslationNorm(const Transform3 &transformDelta)
+double computeTranslationNorm(const Transform3 &transformDelta)
 {
     return transformDelta.translation().norm();
 }
 
-float computeRotationAngle(const Transform3& transformDelta) {
-    float m00 = transformDelta.matrix()(0, 0);
-    float m11 = transformDelta.matrix()(1, 1);
-    float m22 = transformDelta.matrix()(2, 2);
-    float delta = 0.5f * (m00 + m11 + m22 - 1.0f);
-    return acos(std::max(std::min(delta, 1.0f), -1.0f));
+double computeRotationAngle(const Transform3& transformDelta) {
+    double m00 = transformDelta.matrix()(0, 0);
+    double m11 = transformDelta.matrix()(1, 1);
+    double m22 = transformDelta.matrix()(2, 2);
+    double delta = 0.5 * (m00 + m11 + m22 - 1.0);
+    return acos(std::max(std::min(delta, 1.0), -1.0));
 }
 
 void interpolateTransform(const Transform3& transf0,
@@ -400,17 +400,17 @@ void fillCloud(const Cloud &cloud1, const Cloud &cloud2, Cloud &joined,
 }
 
 void computeErrors(const VectorTransform3 &transformsRes,
-                   const std::vector<float> &distancesRes,
+                   const std::vector<double> &distancesRes,
                    const VectorTransform3 &transformsGt,
-                   const std::vector<float> &distancesGt,
-                   float lenSeg,
-                   float lenStep,
+                   const std::vector<double> &distancesGt,
+                   double lenSeg,
+                   double lenStep,
                    VectorErrorData &errors)
 {
     ErrorData err;
     Transform3 transformDeltaRes, transformDeltaGt, transformError;
     int numRes, numGt, firstIdxGt, lastIdxGt, firstIdxRes, lastIdxRes;
-    float factorRes, factorGt;
+    double factorRes, factorGt;
     // float len;
 
     if (transformsRes.size() != distancesRes.size() ||
@@ -501,18 +501,18 @@ void computeErrors(const VectorTransform3 &transformsRes,
 }
 
 void computeErrorsInterp(const VectorTransform3& transformsRes,
-                         const std::vector<float>& distancesRes,
+                         const std::vector<double>& distancesRes,
                          const VectorTransform3& transformsGt,
-                         const std::vector<float>& distancesGt,
-                         float lenSeg,
-                         float lenStep,
+                         const std::vector<double>& distancesGt,
+                         double lenSeg,
+                         double lenStep,
                          VectorErrorData& errors) {
     ErrorData err;
     Transform3 transformFirstRes, transformFirstGt, transformLastRes,
         transformLastGt;
     Transform3 transformDeltaRes, transformDeltaGt, transformError;
     int numRes, numGt, firstIdxGt, lastIdxGt, firstIdxRes, lastIdxRes;
-    float distStart, factorFirstRes, factorFirstGt, factorLastRes, factorLastGt;
+    double distStart, factorFirstRes, factorFirstGt, factorLastRes, factorLastGt;
     // float len;
 
     if (transformsRes.size() != distancesRes.size() ||
