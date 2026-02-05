@@ -217,7 +217,7 @@ int main(int argc, char** argv) {
                 misc_tools::Node n(i);
                 std::string dir = base_dir + "/" + 
                     std::to_string(lastIdx) + "_" + std::to_string(i);
-                misc_tools::scan_overlap_visualization(transClouds.back(), cloud, dir);
+                //misc_tools::scan_overlap_visualization(transClouds.back(), cloud, dir);
 
                 for(int j = 0; j < transClouds.size()-1; j++){
                     auto tCloud = transClouds[j];
@@ -247,7 +247,7 @@ int main(int argc, char** argv) {
         std::cout << std::endl;
     }
 
-    misc_tools::draw_graph(graph, transClouds);
+    //misc_tools::draw_graph(graph, transClouds);
 
     saveGraph(graph, cloudsFront, gtGraph, odomGraph, "graph_" + std::to_string(startIdx) + ".txt");
 

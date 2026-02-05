@@ -114,35 +114,31 @@ double scan_overlap(const std::vector<Vector2>& scan1,
     // boost::geometry::append(poly1, scan1);
     // boost::geometry::append(poly2, scan2);
 
-    std::ofstream filePoly1("poly1.txt");
+    //std::ofstream filePoly1("poly1.txt");
 
     for (const auto& pt : scan1) {
         boost::geometry::append(poly1, Point(static_cast<double>(pt.x()),
-                                             static_cast<double>(pt.y())));
-        filePoly1 << poly1.outer().back().x() << " " << poly1.outer().back().y()
-                  << "\n";
+                                            static_cast<double>(pt.y())));
+        //filePoly1 << poly1.outer().back().x() << " " << poly1.outer().back().y() << "\n";
     }
     auto p = scan1.front();
-    boost::geometry::append(
-        poly1, Point(static_cast<double>(p.x()), static_cast<double>(p.y())));
-    filePoly1 << poly1.outer().back().x() << " " << poly1.outer().back().y()
-              << "\n";
-    filePoly1.close();
+    boost::geometry::append(poly1, Point(static_cast<double>(p.x()),
+                                            static_cast<double>(p.y())));
+    /*filePoly1 << poly1.outer().back().x() << " " << poly1.outer().back().y() << "\n";
+    filePoly1.close(); 
 
-    std::ofstream filePoly2("poly2.txt");
+    std::ofstream filePoly2("poly2.txt");*/
 
     for (const auto& pt : scan2) {
         boost::geometry::append(poly2, Point(static_cast<double>(pt.x()),
-                                             static_cast<double>(pt.y())));
-        filePoly2 << poly2.outer().back().x() << " " << poly2.outer().back().y()
-                  << "\n";
+                                            static_cast<double>(pt.y())));
+        //filePoly2 << poly2.outer().back().x() << " " << poly2.outer().back().y() << "\n";
     }
     p = scan2.front();
-    boost::geometry::append(
-        poly2, Point(static_cast<double>(p.x()), static_cast<double>(p.y())));
-    filePoly2 << poly2.outer().back().x() << " " << poly2.outer().back().y()
-              << "\n";
-    filePoly2.close();
+    boost::geometry::append(poly2, Point(static_cast<double>(p.x()),
+                                            static_cast<double>(p.y())));
+    /*filePoly2 << poly2.outer().back().x() << " " << poly2.outer().back().y() << "\n";
+    filePoly2.close(); */
 
     return scan_overlap(poly1, poly2);
 }
