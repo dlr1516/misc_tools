@@ -1,4 +1,6 @@
 #include <iostream>
+#include <Eigen/Dense>
+#include <fstream>
 
 #include "../src/thirdparty/libicp/icpPointToPlane.h"
 
@@ -6,9 +8,55 @@
 // #include "../src/thirdparty/libvfc/featureMatch.h"
 
 #include <opencv2/core/core.hpp>
+#include <rofl/common/param_map.h>
 
+using Vector2 = Eigen::Vector2d;
+using Transform2 = Eigen::Affine2d;
+using VectorTransform2 =
+    std::vector<Transform2, Eigen::aligned_allocator<Transform2> >;
+using Cloud = std::vector<Vector2>;
+
+struct Edge{
+    int src;
+    int dst;
+
+    Edge(int src_, int dst_): src(src_), dst(dst_) {}
+};
+
+struct GraphNode{
+    Cloud cloud;
+    int id;
+
+    GraphNode(int id_, Cloud cloud_): id(id_), cloud(cloud_) {}
+};
+
+int readGraph(const std::string& filename, 
+               std::vector<GraphNode>& nodes,
+               VectorTransform2& gts,
+               VectorTransform2& odoms,
+               std::vector<Edge>& edges);
 
 int main (int argc, char** argv) {
+    //reading params and graph
+    std::string filenameCfg, filenameGraph;
+    rofl::ParamMap params;
+
+    // Reads params from command line
+    params.read(argc, argv);
+    params.getParam<std::string>("cfg", filenameCfg, std::string(""));
+    params.read(filenameCfg);
+    params.read(argc, argv);
+    params.getParam<std::string>("graph", filenameGraph, std::string(""));
+
+    std::cout << "\nParams:" << std::endl;
+    params.write(std::cout);
+    std::cout << "-------\n" << std::endl;
+
+    std::vector<GraphNode> nodes;
+    VectorTransform2 gts, odoms;
+    std::vector<Edge> edges;
+
+    readGraph(filenameGraph, nodes, gts, odoms, edges);
 
     /** 
      * ICP
@@ -94,4 +142,73 @@ int main (int argc, char** argv) {
 
 
     return 0;
+}
+
+int readGraph(const std::string& filename, 
+               std::vector<GraphNode>& nodes,
+               VectorTransform2& gts,
+               VectorTransform2& odoms,
+               std::vector<Edge>& edges){
+    std::string line, comment, label;
+	Vector2 p;
+	size_t pos;
+	int count;
+
+	std::ifstream file(filename);
+	if (!file) {
+		std::cerr << "Cannot open file \"" << filename << "\"" << std::endl;
+		return 0;
+	}
+
+	nodes.clear();
+    gts.clear();
+    odoms.clear();
+    edges.clear();
+
+	count = 0;
+	while (!file.eof()) {
+		std::getline(file, line);
+		// Remove comments starting with '#'
+		comment = "";
+		pos = line.find_first_of('#');
+		if (pos != std::string::npos) {
+            if(pos == 0) continue;
+			comment = line.substr(pos + 1, line.size());
+			line = line.substr(0, pos);
+		}
+		// Parse the line (after comment removal)
+        std::stringstream ssl(line);
+        if(line.find("EDGE") == 0){
+            int src, dst;
+            ssl >> label;
+            if(ssl >> src >> dst)
+                edges.push_back(Edge(src, dst));
+        }
+        else if(line.find("NODE") == 0){
+            double pX, pY, pT, oX, oY, oT;
+            int id;
+            Vector2 p;
+            Cloud cloud;
+            ssl >> label;
+            if(ssl >> id >> pX >> pY >> pT >> oX >> oY >> oT){
+                Transform2 odom, gt;
+                odom.linear() = Eigen::Rotation2Dd(oT).matrix();
+                odom.translation() = Vector2(oX, oY);
+
+                gt.linear() = Eigen::Rotation2Dd(pT).matrix();
+                gt.translation() = Vector2(pX, pY);
+
+                odoms.push_back(odom);
+                gts.push_back(gt);
+            }
+            else continue;
+
+            while(ssl >> p.x() >> p.y())
+                cloud.push_back(p);
+            nodes.push_back(GraphNode(id, cloud));
+        }
+	}
+	file.close();
+
+	return count;
 }
