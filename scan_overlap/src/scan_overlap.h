@@ -9,7 +9,7 @@
 
 #if BOOST_VERSION >= 174000
 #include <boost/math/tools/color_maps.hpp>
-#endif()
+#endif
 
 #include <filesystem>
 

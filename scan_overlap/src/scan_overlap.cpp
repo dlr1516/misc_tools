@@ -217,6 +217,6 @@ void draw_graph(const Graph& graph, const std::vector<Cloud>& clouds) {
 }
 #else
 void draw_graph(const Graph& graph, const std::vector<Cloud>& clouds) {}
-#endif()
+#endif
 
 }  // namespace misc_tools
