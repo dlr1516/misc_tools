@@ -2,9 +2,9 @@
 #include <Eigen/Dense>
 #include <fstream>
 
-#include "../src/thirdparty/libicp/icpPointToPlane.h"
+#include "thirdparty/libicp/icpPointToPlane.h"
 
-#include "../src/thirdparty/libvfc/vfc.h"
+#include "thirdparty/libvfc/vfc.h"
 // #include "../src/thirdparty/libvfc/featureMatch.h"
 
 #include <opencv2/core/core.hpp>
