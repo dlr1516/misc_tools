@@ -1,7 +1,11 @@
-cmake_minimum_required(VERSION 3.0.2)
+cmake_minimum_required(VERSION 3.28.3)
 project(scan_overlap)
 
+set(CMAKE_CXX_STANDARD 17)
+
 set(CMAKE_BUILD_TYPE Debug)
+
+include_directories(src)
 
 # Eigen
 find_package(Eigen3 REQUIRED)
@@ -22,14 +26,26 @@ add_definitions(${OpenCV_DEFINITIONS})
 find_package(rofl REQUIRED)
 include_directories(${rofl_INCLUDE_DIRS})
 
-include_directories(src)
+# ARS
+find_package(ars REQUIRED)
+message(STATUS "ars_FOUND ${ars_FOUND}")
+message(STATUS "ars_INCLUDE_DIRS ${ars_INCLUDE_DIRS}")
+message(STATUS "ars_LIBRARY_DIRS ${ars_LIBRARY_DIRS}")
+message(STATUS "ars_LIBRARIES ${ars_LIBRARIES}")
 
+if(${ars_FOUND})
+include_directories(${ars_INCLUDE_DIRS})
+link_directories(${ars_LIBRARY_DIRS})
+endif()
+
+
+# VFC
 add_library(vfc
   src/thirdparty/libvfc/vfc.cpp
-
   # src/thirdparty/libvfc/featureMatch.cpp # NOT USED anymore
 )
 
+# ICP
 add_library(icp
   src/thirdparty/libicp/icp.cpp
   src/thirdparty/libicp/icpPointToPlane.cpp
@@ -38,13 +54,15 @@ add_library(icp
   src/thirdparty/libicp/matrix.cpp
 )
 
+## EXECUTABLES
+
 add_executable(find_overlap_graph
   src/find_overlap_graph.cpp
   src/scan_overlap.cpp
   src/transform_utils.cpp
 )
 target_link_libraries(find_overlap_graph ${Boost_LIBRARIES} ${rofl_LIBRARIES} opencv_core)
-target_compile_features(find_overlap_graph PRIVATE cxx_std_17 )
+target_compile_features(find_overlap_graph PRIVATE cxx_std_17)
 
 add_executable(run_graph_tests
   app/run_graph_tests.cpp
@@ -53,5 +71,5 @@ add_executable(run_graph_tests
   src/thirdparty/libvfc/vfc.cpp
   src/thirdparty/libicp/icp.cpp
 )
-target_link_libraries(run_graph_tests ${Boost_LIBRARIES} ${rofl_LIBRARIES} icp vfc opencv_core)
+target_link_libraries(run_graph_tests ${Boost_LIBRARIES} ${rofl_LIBRARIES} ${ars_LIBRARIES} icp vfc opencv_core)
 target_compile_features(run_graph_tests PRIVATE cxx_std_17)
