@@ -13,6 +13,8 @@ namespace scan_overlap
 {
     using Vector3 = Eigen::Vector3d;
     using Vector2 = Eigen::Vector2d;
+    using VectorVector3 = std::vector<Vector3>;
+    using VectorVector2 = std::vector<Vector2>;
     using Quaternion = Eigen::Quaterniond;
     using Transform3 = Eigen::Affine3d;
     using Transform2 = Eigen::Affine2d;

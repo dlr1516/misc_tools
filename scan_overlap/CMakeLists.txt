@@ -38,6 +38,11 @@ include_directories(${ars_INCLUDE_DIRS})
 link_directories(${ars_LIBRARY_DIRS})
 endif()
 
+# PCL
+
+
+find_package(PCL 1.14 REQUIRED)
+
 
 # VFC
 add_library(vfc
@@ -68,8 +73,10 @@ add_executable(run_graph_tests
   app/run_graph_tests.cpp
   src/scan_overlap.cpp
   src/transform_utils.cpp
+  src/simple_icp_registration.cpp
+  src/vfc_registration.cpp
   src/thirdparty/libvfc/vfc.cpp
   src/thirdparty/libicp/icp.cpp
 )
-target_link_libraries(run_graph_tests ${Boost_LIBRARIES} ${rofl_LIBRARIES} ${ars_LIBRARIES} icp vfc opencv_core)
+target_link_libraries(run_graph_tests ${Boost_LIBRARIES} ${rofl_LIBRARIES} ${ars_LIBRARIES} icp vfc opencv_core ${PCL_LIBRARIES})
 target_compile_features(run_graph_tests PRIVATE cxx_std_17)

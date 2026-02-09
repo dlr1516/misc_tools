@@ -9,12 +9,54 @@
 
 #include <opencv2/core/core.hpp>
 
+#include "simple_icp_registration.h"
+#include "vfc_registration.h"
+
 #include "thirdparty/libicp/icpPointToPlane.h"
 
 #include "thirdparty/libvfc/vfc.h"
 // #include "thirdparty/libvfc/featureMatch.h"
 
 #include "transform_utils.h"
+
+
+class GraphSolver {
+public:
+    GraphSolver() = default;
+
+    virtual ~GraphSolver() = default;
+
+    virtual void estimate(const std::vector<scan_overlap::Node>& nodes,
+                  const scan_overlap::VectorTransform2& odoms,
+                  const std::vector<scan_overlap::Edge>& edges,
+                  std::vector<double>& angles) = 0;
+};
+
+class GraphSolverIcp : public GraphSolver {
+public:
+    GraphSolverIcp() = default;
+    
+    virtual ~GraphSolverIcp() = default;
+
+    virtual void estimate(const std::vector<scan_overlap::Node>& nodes,
+                  const scan_overlap::VectorTransform2& odoms,
+                  const std::vector<scan_overlap::Edge>& edges,
+                  std::vector<double>& angles) override;
+};
+
+class GraphSolverVfc : public GraphSolver {
+public:
+    GraphSolverVfc() = default;
+    
+    virtual ~GraphSolverVfc() = default;
+
+    virtual void estimate(const std::vector<scan_overlap::Node>& nodes,
+                  const scan_overlap::VectorTransform2& odoms,
+                  const std::vector<scan_overlap::Edge>& edges,
+                  std::vector<double>& angles) override;
+};
+
+
 
 int main(int argc, char **argv)
 {
@@ -206,4 +248,54 @@ int main(int argc, char **argv)
     //         matches, correctMatches);
 
     return 0;
+}
+
+
+void GraphSolverIcp::estimate(const std::vector<scan_overlap::Node>& nodes,
+                  const scan_overlap::VectorTransform2& odoms,
+                  const std::vector<scan_overlap::Edge>& edges,
+                  std::vector<double>& angles) {
+                    scan_overlap::SimpleIcpRegistration icp(1000);
+                    scan_overlap::Transform2 transfEstim;
+                    scan_overlap::Transform2 transfGuess;
+                    scan_overlap::Transform2 transfGlobal;
+
+                    transfGlobal.setIdentity();
+                    for (int i = 1; i < nodes.size(); ++i) {
+                        const auto& nodeSrc = nodes.at(i-1);
+                        const auto& nodeDst = nodes.at(i);
+                        transfGuess = odoms.at(i-1).inverse() * odoms.at(i);
+                        icp.setPointSetSrc(nodeSrc.cloud);
+                        icp.setPointSetDst(nodeDst.cloud);
+                        icp.computeRigidTransform(transfEstim, transfGuess);
+                        transfGlobal = transfGlobal * transfEstim;
+                        auto tgl = transfGlobal.linear().col(0);
+                        angles.push_back(atan2(tgl.y(), tgl.x()));
+                 }
+}
+
+void GraphSolverVfc::estimate(const std::vector<scan_overlap::Node>& nodes,
+                  const scan_overlap::VectorTransform2& odoms,
+                  const std::vector<scan_overlap::Edge>& edges,
+                  std::vector<double>& angles) {
+
+                    scan_overlap::VFCRegistration vfc;
+                    scan_overlap::Transform2 transfEstim;
+                    scan_overlap::Transform2 transfGuess;
+                    scan_overlap::Transform2 transfGlobal;
+
+                    transfGlobal.setIdentity();
+                    for (int i = 1; i < nodes.size(); ++i) {
+                        const auto& nodeSrc = nodes.at(i-1);
+                        const auto& nodeDst = nodes.at(i);
+                        transfGuess = odoms.at(i-1).inverse() * odoms.at(i);
+                        vfc.setPointSetSrc(nodeSrc.cloud);
+                        vfc.setPointSetDst(nodeDst.cloud);
+                        vfc.computeRigidTransform(transfEstim, transfGuess);
+                        transfGlobal = transfGlobal * transfEstim;
+                        auto tgl = transfGlobal.linear().col(0);
+                        angles.push_back(atan2(tgl.y(), tgl.x()));
+
+                    }
+                    
 }
