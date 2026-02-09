@@ -10,131 +10,116 @@
 #include <vector>
 #include <map>
 
-namespace misc_tools {
+#include "types.h"
 
-using Vector3 = Eigen::Vector3d;
-using Vector2 = Eigen::Vector2d;
-using Quaternion = Eigen::Quaterniond;
-using Transform3 = Eigen::Affine3d;
-using Transform2 = Eigen::Affine2d;
-using VectorTransform3 =
-    std::vector<Transform3, Eigen::aligned_allocator<Transform3> >;
-using VectorTransform2 =
-    std::vector<Transform2, Eigen::aligned_allocator<Transform2> >;
-using Scan = std::vector<double>;
-using LaserSpecs = std::map<std::string, std::string>;
-using Cloud = std::vector<Vector2>;
+namespace scan_overlap
+{
 
-struct Node {
-    int id;
-    std::vector<int> adj;
-    Node(int id_) : id(id_), adj() {};
-    Node(int id_, std::vector<int> adj_) : id(id_), adj(adj_) {};
-};
-using Graph = std::vector<Node>;
+    bool readTransformLine(std::istream &in, Transform3 &transform);
 
-struct ErrorData {
-    int firstIdx;
-    int lastIdx;
-    double length;
-    double errTransl;
-    double errRot;
-};
-using VectorErrorData = std::vector<ErrorData>;
+    bool readTimeTransformLine(std::istream &in,
+                               double &time,
+                               Transform3 &transform);
 
-bool readTransformLine(std::istream& in, Transform3& transform);
+    bool readTimePosQuatLine(std::istream &in, double &time, Transform3 &transform);
 
-bool readTimeTransformLine(std::istream& in,
-                           double& time,
-                           Transform3& transform);
+    bool readTimePosQuatCovLine(std::istream &in, double &time, Transform3 &transform);
 
-bool readTimePosQuatLine(std::istream& in, double& time, Transform3& transform);
+    bool readTimeRangesLine(std::istream &in, double &time, Scan &ranges);
 
-bool readTimePosQuatCovLine(std::istream& in, double& time, Transform3& transform);
+    bool readLaserSpecsLine(std::istream &in, std::string &key, std::string &val);
 
-bool readTimeRangesLine(std::istream& in, double& time, Scan& ranges);
+    bool readTransformFile(const std::string &filename,
+                           VectorTransform3 &transforms);
 
-bool readLaserSpecsLine(std::istream& in, std::string& key, std::string& val);
+    bool readTimeTransformFile(const std::string &filename,
+                               std::vector<double> &times,
+                               VectorTransform3 &transforms);
 
-bool readTransformFile(const std::string& filename,
-                       VectorTransform3& transforms);
+    bool readTimePosQuatFile(const std::string &filename,
+                             std::vector<double> &times,
+                             VectorTransform3 &transforms);
 
-bool readTimeTransformFile(const std::string& filename,
-                           std::vector<double>& times,
-                           VectorTransform3& transforms);
+    bool readTimePosQuatCovFile(const std::string &filename,
+                                std::vector<double> &times,
+                                VectorTransform3 &transforms);
 
-bool readTimePosQuatFile(const std::string& filename,
-                         std::vector<double>& times,
-                         VectorTransform3& transforms);
+    bool readTimeRangesFile(const std::string &filename,
+                            std::vector<double> &times,
+                            std::vector<Scan> &ranges);
 
-bool readTimePosQuatCovFile(const std::string& filename,
-                         std::vector<double>& times,
-                         VectorTransform3& transforms);
+    bool readLaserSpecsFile(const std::string &filename,
+                            LaserSpecs &laserSpecs);
 
-bool readTimeRangesFile(const std::string& filename,
-                            std::vector<double>& times,
-                            std::vector<Scan>& ranges);
+    void writePoseQuat(std::ostream &out,
+                       const double &t,
+                       const Transform3 &pose);
 
-bool readLaserSpecsFile(const std::string& filename,
-                            LaserSpecs& laserSpecs);
+    void writePoseMat(std::ostream &out, const Transform3 &pose);
 
-void writePoseQuat(std::ostream& out,
-                   const double& t,
-                   const Transform3& pose);
+    void computeDistances(const VectorTransform3 &transforms,
+                          std::vector<double> &distances);
 
-void writePoseMat(std::ostream& out, const Transform3& pose);
+    int findDistanceIdx(const std::vector<double> &distances,
+                        double len,
+                        double &factor);
 
-void computeDistances(const VectorTransform3& transforms,
-                      std::vector<double>& distances);
+    int findDistanceIncrIdx(const std::vector<double> &distances,
+                            int startIdx,
+                            double lenStep,
+                            double &factor);
 
-int findDistanceIdx(const std::vector<double>& distances,
-                    double len,
-                    double& factor);
+    void scanToCloud(const Scan &scan, const LaserSpecs &ls, Cloud &cloud);
 
-int findDistanceIncrIdx(const std::vector<double>& distances,
-                        int startIdx,
-                        double lenStep,
-                        double& factor);
+    void orderCloudRadially(Cloud &cloud);
 
-void scanToCloud(const Scan& scan, const LaserSpecs& ls, Cloud& cloud);
+    double computeTranslationNorm(const Transform3 &transformDelta);
 
-void orderCloudRadially(Cloud& cloud);
+    double computeRotationAngle(const Transform3 &transformDelta);
 
-double computeTranslationNorm(const Transform3& transformDelta);
+    void interpolateTransform(const Transform3 &transf0,
+                              const Transform3 &transf1,
+                              double f,
+                              Transform3 &transfInterp);
 
-double computeRotationAngle(const Transform3& transformDelta);
+    bool findGtTransform(const double scanTs,
+                         const std::vector<double> &gtTimes,
+                         const VectorTransform3 &gtTransforms,
+                         Transform3 &transform);
 
-void interpolateTransform(const Transform3& transf0,
-                          const Transform3& transf1,
-                          double f,
-                          Transform3& transfInterp);
+    void trans3DToTrans2D(const Transform3 &trans3D, Transform2 &trans2D);
 
-bool findGtTransform(const double scanTs, 
-                     const std::vector<double>& gtTimes, 
-                     const VectorTransform3& gtTransforms,
-                     Transform3& transform);
+    void fillCloud(const Cloud &cloud1, const Cloud &cloud2, Cloud &joined,
+                   double startAngle, double endAngle);
 
-void trans3DToTrans2D(const Transform3& trans3D, Transform2& trans2D);
+    void computeErrors(const VectorTransform3 &transformsRes,
+                       const std::vector<double> &distancesRes,
+                       const VectorTransform3 &transformsGt,
+                       const std::vector<double> &distancesGt,
+                       double lenSeg,
+                       double lenStep,
+                       VectorErrorData &errors);
 
-void fillCloud(const Cloud &cloud1, const Cloud &cloud2, Cloud &joined,
-               double startAngle, double endAngle);
+    void computeErrorsInterp(const VectorTransform3 &transformsRes,
+                             const std::vector<double> &distancesRes,
+                             const VectorTransform3 &transformsGt,
+                             const std::vector<double> &distancesGt,
+                             double lenSeg,
+                             double lenStep,
+                             VectorErrorData &errors);
 
-void computeErrors(const VectorTransform3& transformsRes,
-                   const std::vector<double>& distancesRes,
-                   const VectorTransform3& transformsGt,
-                   const std::vector<double>& distancesGt,
-                   double lenSeg,
-                   double lenStep,
-                   VectorErrorData& errors);
+    int readGraph(const std::string &filename,
+                  std::vector<Node> &nodes,
+                  VectorTransform2 &gts,
+                  VectorTransform2 &odoms,
+                  std::vector<Edge> &edges);
 
-void computeErrorsInterp(const VectorTransform3& transformsRes,
-                         const std::vector<double>& distancesRes,
-                         const VectorTransform3& transformsGt,
-                         const std::vector<double>& distancesGt,
-                         double lenSeg,
-                         double lenStep,
-                         VectorErrorData& errors);
+    void saveGraph(const Graph &graph,
+                   const std::vector<Cloud> &clouds,
+                   const VectorTransform2 &gts,
+                   const VectorTransform2 &odoms,
+                   const std::string &fileName);
 
-}  // namespace misc_tools
+} // namespace scan_overlap
 
 #endif

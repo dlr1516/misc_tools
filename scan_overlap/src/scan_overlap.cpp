@@ -1,6 +1,6 @@
 #include "scan_overlap.h"
 
-namespace misc_tools {
+namespace scan_overlap {
 
 double scan_overlap(const Polygon& p1, const Polygon& p2) {
     MultiPolygon outputUnion;
@@ -215,4 +215,4 @@ void draw_graph(const Graph& graph, const std::vector<Cloud>& clouds) {
 void draw_graph(const Graph& graph, const std::vector<Cloud>& clouds) {}
 #endif
 
-}  // namespace misc_tools
+}  // namespace scan_overlap

@@ -15,7 +15,7 @@
 
 #include "transform_utils.h"
 
-namespace misc_tools {
+namespace scan_overlap {
 
 using Point = boost::geometry::model::d2::point_xy<double>;
 using Linestring = boost::geometry::model::linestring<Point>;
@@ -35,6 +35,6 @@ double scan_overlap_visualization(const std::vector<Vector2>& p1,
 
 void draw_graph(const Graph& graph, const std::vector<Cloud>& clouds);
 
-}  // namespace misc_tools
+}  // namespace scan_overlap
 
 #endif

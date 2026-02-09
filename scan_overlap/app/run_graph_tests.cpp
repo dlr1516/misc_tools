@@ -14,44 +14,7 @@
 #include "thirdparty/libvfc/vfc.h"
 // #include "thirdparty/libvfc/featureMatch.h"
 
-using Vector2 = Eigen::Vector2d;
-using Transform2 = Eigen::Affine2d;
-using VectorTransform2 =
-    std::vector<Transform2, Eigen::aligned_allocator<Transform2>>;
-using Cloud = std::vector<Vector2>;
-
-struct Edge
-{
-    int src;
-    int dst;
-
-    Edge(int src_, int dst_) : src(src_), dst(dst_) {}
-};
-
-struct GraphNode
-{
-    Cloud cloud;
-    int id;
-
-    GraphNode(int id_, Cloud cloud_) : id(id_), cloud(cloud_) {}
-};
-
-int readGraph(const std::string &filename,
-              std::vector<GraphNode> &nodes,
-              VectorTransform2 &gts,
-              VectorTransform2 &odoms,
-              std::vector<Edge> &edges);
-
-#define PRINT_DIM(X) std::cout << #X << " rows " << X.rows() << " cols " << X.cols() << std::endl;
-#define RAD2DEG(X) (180.0 / M_PI * (X))
-
-// struct ArsBoundInterval
-// {
-//     double x0;
-//     double x1;
-//     double y0;
-//     double y1;
-// };
+#include "transform_utils.h"
 
 int main(int argc, char **argv)
 {
@@ -71,11 +34,11 @@ int main(int argc, char **argv)
     std::cout << "-------\n"
               << std::endl;
 
-    std::vector<GraphNode> nodes;
-    VectorTransform2 gts, odoms;
-    std::vector<Edge> edges;
+    std::vector<scan_overlap::Node> nodes;
+    scan_overlap::VectorTransform2 gts, odoms;
+    std::vector<scan_overlap::Edge> edges;
 
-    readGraph(filenameGraph, nodes, gts, odoms, edges);
+    scan_overlap::readGraph(filenameGraph, nodes, gts, odoms, edges);
 
     /**
      * ARS
@@ -84,14 +47,14 @@ int main(int argc, char **argv)
     ars::AngularRadonSpectrum2d arsSrc;
     ars::AngularRadonSpectrum2d arsDst;
 
-    int fourierOrder = 20; //TODO: make ARS params configurable from file/command line
+    int fourierOrder = 20; // TODO: make ARS params configurable from file/command line
     double sigma = 0.05;
 
     arsSrc.setARSFOrder(fourierOrder);
     arsDst.setARSFOrder(fourierOrder);
 
     arsSrc.initLUT(0.0001);
-    arsSrc.setComputeMode(ars::ArsKernelIsotropic2d::ComputeMode::PNEBI_DOWNWARD);
+    arsSrc.setComputeMode(ars::ArsKernelIsotropic2d::ComputeMode::PNEBI_LUT);
 
     auto timeStart = std::chrono::system_clock::now();
     ars::VectorVector2 acesPoints1; // TODO: fill from graph
@@ -243,82 +206,4 @@ int main(int argc, char **argv)
     //         matches, correctMatches);
 
     return 0;
-}
-
-int readGraph(const std::string &filename,
-              std::vector<GraphNode> &nodes,
-              VectorTransform2 &gts,
-              VectorTransform2 &odoms,
-              std::vector<Edge> &edges)
-{
-    std::string line, comment, label;
-    Vector2 p;
-    size_t pos;
-    int count;
-
-    std::ifstream file(filename);
-    if (!file)
-    {
-        std::cerr << "Cannot open file \"" << filename << "\"" << std::endl;
-        return 0;
-    }
-
-    nodes.clear();
-    gts.clear();
-    odoms.clear();
-    edges.clear();
-
-    count = 0;
-    while (!file.eof())
-    {
-        std::getline(file, line);
-        // Remove comments starting with '#'
-        comment = "";
-        pos = line.find_first_of('#');
-        if (pos != std::string::npos)
-        {
-            if (pos == 0)
-                continue;
-            comment = line.substr(pos + 1, line.size());
-            line = line.substr(0, pos);
-        }
-        // Parse the line (after comment removal)
-        std::stringstream ssl(line);
-        if (line.find("EDGE") == 0)
-        {
-            int src, dst;
-            ssl >> label;
-            if (ssl >> src >> dst)
-                edges.push_back(Edge(src, dst));
-        }
-        else if (line.find("NODE") == 0)
-        {
-            double pX, pY, pT, oX, oY, oT;
-            int id;
-            Vector2 p;
-            Cloud cloud;
-            ssl >> label;
-            if (ssl >> id >> pX >> pY >> pT >> oX >> oY >> oT)
-            {
-                Transform2 odom, gt;
-                odom.linear() = Eigen::Rotation2Dd(oT).matrix();
-                odom.translation() = Vector2(oX, oY);
-
-                gt.linear() = Eigen::Rotation2Dd(pT).matrix();
-                gt.translation() = Vector2(pX, pY);
-
-                odoms.push_back(odom);
-                gts.push_back(gt);
-            }
-            else
-                continue;
-
-            while (ssl >> p.x() >> p.y())
-                cloud.push_back(p);
-            nodes.push_back(GraphNode(id, cloud));
-        }
-    }
-    file.close();
-
-    return count;
 }
