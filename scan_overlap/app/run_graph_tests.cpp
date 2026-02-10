@@ -7,6 +7,8 @@
 
 #include <ars/ars2d.h>
 #include <ars/utils.h>
+#include <ars/ArsGraph.h>
+#include <ars/ArsGraphSolver.h>
 
 #include <opencv2/core/core.hpp>
 
@@ -20,53 +22,69 @@
 
 #include "transform_utils.h"
 
-
-class GraphSolver {
+class GraphSolver
+{
 public:
     GraphSolver() = default;
 
     virtual ~GraphSolver() = default;
 
-    virtual void estimate(const std::vector<scan_overlap::Node>& nodes,
-                  const scan_overlap::VectorTransform2& odoms,
-                  const std::vector<scan_overlap::Edge>& edges,
-                  std::vector<double>& angles) = 0;
+    virtual void estimate(const std::vector<scan_overlap::Node> &nodes,
+                          const scan_overlap::VectorTransform2 &odoms,
+                          const std::vector<scan_overlap::Edge> &edges,
+                          std::vector<double> &angles) = 0;
 };
 
-class GraphSolverIcp : public GraphSolver {
+class GraphSolverIcp : public GraphSolver
+{
 public:
     GraphSolverIcp() = default;
-    
+
     virtual ~GraphSolverIcp() = default;
 
-    virtual void estimate(const std::vector<scan_overlap::Node>& nodes,
-                  const scan_overlap::VectorTransform2& odoms,
-                  const std::vector<scan_overlap::Edge>& edges,
-                  std::vector<double>& angles) override;
+    virtual void estimate(const std::vector<scan_overlap::Node> &nodes,
+                          const scan_overlap::VectorTransform2 &odoms,
+                          const std::vector<scan_overlap::Edge> &edges,
+                          std::vector<double> &angles) override;
 };
 
-class GraphSolverVfc : public GraphSolver {
+class GraphSolverVfc : public GraphSolver
+{
 public:
     GraphSolverVfc() = default;
-    
+
     virtual ~GraphSolverVfc() = default;
 
-    virtual void estimate(const std::vector<scan_overlap::Node>& nodes,
-                  const scan_overlap::VectorTransform2& odoms,
-                  const std::vector<scan_overlap::Edge>& edges,
-                  std::vector<double>& angles) override;
+    virtual void estimate(const std::vector<scan_overlap::Node> &nodes,
+                          const scan_overlap::VectorTransform2 &odoms,
+                          const std::vector<scan_overlap::Edge> &edges,
+                          std::vector<double> &angles) override;
 };
 
-class GraphSolverArs : public GraphSolver {
+class GraphSolverArs : public GraphSolver
+{
 public:
     GraphSolverArs() = default;
-    
+
     virtual ~GraphSolverArs() = default;
 
-    virtual void estimate(const std::vector<scan_overlap::Node>& nodes,
-                  const scan_overlap::VectorTransform2& odoms,
-                  const std::vector<scan_overlap::Edge>& edges,
-                  std::vector<double>& angles) override;
+    virtual void estimate(const std::vector<scan_overlap::Node> &nodes,
+                          const scan_overlap::VectorTransform2 &odoms,
+                          const std::vector<scan_overlap::Edge> &edges,
+                          std::vector<double> &angles) override;
+};
+
+class GraphSolverArsGraph : public GraphSolver
+{
+public:
+    GraphSolverArsGraph() = default;
+
+    virtual ~GraphSolverArsGraph() = default;
+
+    virtual void estimate(const std::vector<scan_overlap::Node> &nodes,
+                          const scan_overlap::VectorTransform2 &odoms,
+                          const std::vector<scan_overlap::Edge> &edges,
+                          std::vector<double> &angles) override;
 };
 
 int main(int argc, char **argv)
@@ -96,11 +114,12 @@ int main(int argc, char **argv)
     /**
      * ARS
      */
-    //compute coeffs, used for both ars pairwise and ars graph
-    for(auto& n : nodes){
+    // compute coeffs, used for both ars pairwise and ars graph
+    for (auto &n : nodes)
+    {
         ars::AngularRadonSpectrum2d arsSrc;
 
-        int fourierOrder = 20; // TODO: make ARS params configurable from file/command line
+        int fourierOrder = 30; // TODO: make ARS params configurable from file/command line
         double sigma = 0.05;
 
         arsSrc.setARSFOrder(fourierOrder);
@@ -110,7 +129,8 @@ int main(int argc, char **argv)
 
         auto timeStart = std::chrono::system_clock::now();
         ars::VectorVector2 acesPoints1;
-        for(auto& p : n.cloud) acesPoints1.push_back(ars::Vector2(p.x(), p.y()));
+        for (auto &p : n.cloud)
+            acesPoints1.push_back(ars::Vector2(p.x(), p.y()));
 
         arsSrc.insertIsotropicGaussians(acesPoints1, sigma);
 
@@ -121,7 +141,7 @@ int main(int argc, char **argv)
         std::cout << "insertIsotropicGaussians() " << timeAvg << " ms" << std::endl;
 
         std::cout << "\n------\n"
-                << std::endl;
+                  << std::endl;
 
         std::cout << "\nARS Coefficients:\n";
         std::cout << "\ti \tDownward \tLUT\n";
@@ -136,7 +156,7 @@ int main(int argc, char **argv)
 
     scan_overlap::Node src = nodes.front();
     scan_overlap::Node dst = nodes.back();
- 
+
     std::vector<double> funcFourierRecursDownLUT;
     std::vector<double> funcFourierRecursDown;
     int thnum = 360;
@@ -250,75 +270,116 @@ int main(int argc, char **argv)
     return 0;
 }
 
+void GraphSolverIcp::estimate(const std::vector<scan_overlap::Node> &nodes,
+                              const scan_overlap::VectorTransform2 &odoms,
+                              const std::vector<scan_overlap::Edge> &edges,
+                              std::vector<double> &angles)
+{
+    scan_overlap::SimpleIcpRegistration icp(1000);
+    scan_overlap::Transform2 transfEstim;
+    scan_overlap::Transform2 transfGuess;
+    scan_overlap::Transform2 transfGlobal;
 
-void GraphSolverIcp::estimate(const std::vector<scan_overlap::Node>& nodes,
-                  const scan_overlap::VectorTransform2& odoms,
-                  const std::vector<scan_overlap::Edge>& edges,
-                  std::vector<double>& angles) {
-                    scan_overlap::SimpleIcpRegistration icp(1000);
-                    scan_overlap::Transform2 transfEstim;
-                    scan_overlap::Transform2 transfGuess;
-                    scan_overlap::Transform2 transfGlobal;
-
-                    transfGlobal.setIdentity();
-                    for (int i = 1; i < nodes.size(); ++i) {
-                        const auto& nodeSrc = nodes.at(i-1);
-                        const auto& nodeDst = nodes.at(i);
-                        transfGuess = odoms.at(i-1).inverse() * odoms.at(i);
-                        icp.setPointSetSrc(nodeSrc.cloud);
-                        icp.setPointSetDst(nodeDst.cloud);
-                        icp.computeRigidTransform(transfEstim, transfGuess);
-                        transfGlobal = transfGlobal * transfEstim;
-                        auto tgl = transfGlobal.linear().col(0);
-                        angles.push_back(atan2(tgl.y(), tgl.x()));
-                 }
+    transfGlobal.setIdentity();
+    for (int i = 1; i < nodes.size(); ++i)
+    {
+        const auto &nodeSrc = nodes.at(i - 1);
+        const auto &nodeDst = nodes.at(i);
+        transfGuess = odoms.at(i - 1).inverse() * odoms.at(i);
+        icp.setPointSetSrc(nodeSrc.cloud);
+        icp.setPointSetDst(nodeDst.cloud);
+        icp.computeRigidTransform(transfEstim, transfGuess);
+        transfGlobal = transfGlobal * transfEstim;
+        auto tgl = transfGlobal.linear().col(0);
+        angles.push_back(atan2(tgl.y(), tgl.x()));
+    }
 }
 
-void GraphSolverVfc::estimate(const std::vector<scan_overlap::Node>& nodes,
-                  const scan_overlap::VectorTransform2& odoms,
-                  const std::vector<scan_overlap::Edge>& edges,
-                  std::vector<double>& angles) {
+void GraphSolverVfc::estimate(const std::vector<scan_overlap::Node> &nodes,
+                              const scan_overlap::VectorTransform2 &odoms,
+                              const std::vector<scan_overlap::Edge> &edges,
+                              std::vector<double> &angles)
+{
 
-                    scan_overlap::VFCRegistration vfc;
-                    scan_overlap::Transform2 transfEstim;
-                    scan_overlap::Transform2 transfGuess;
-                    scan_overlap::Transform2 transfGlobal;
+    scan_overlap::VFCRegistration vfc;
+    scan_overlap::Transform2 transfEstim;
+    scan_overlap::Transform2 transfGuess;
+    scan_overlap::Transform2 transfGlobal;
 
-                    transfGlobal.setIdentity();
-                    for (int i = 1; i < nodes.size(); ++i) {
-                        const auto& nodeSrc = nodes.at(i-1);
-                        const auto& nodeDst = nodes.at(i);
-                        transfGuess = odoms.at(i-1).inverse() * odoms.at(i);
-                        vfc.setPointSetSrc(nodeSrc.cloud);
-                        vfc.setPointSetDst(nodeDst.cloud);
-                        vfc.computeRigidTransform(transfEstim, transfGuess);
-                        transfGlobal = transfGlobal * transfEstim;
-                        auto tgl = transfGlobal.linear().col(0);
-                        angles.push_back(atan2(tgl.y(), tgl.x()));
-
-                    }
-                    
+    transfGlobal.setIdentity();
+    for (int i = 1; i < nodes.size(); ++i)
+    {
+        const auto &nodeSrc = nodes.at(i - 1);
+        const auto &nodeDst = nodes.at(i);
+        transfGuess = odoms.at(i - 1).inverse() * odoms.at(i);
+        vfc.setPointSetSrc(nodeSrc.cloud);
+        vfc.setPointSetDst(nodeDst.cloud);
+        vfc.computeRigidTransform(transfEstim, transfGuess);
+        transfGlobal = transfGlobal * transfEstim;
+        auto tgl = transfGlobal.linear().col(0);
+        angles.push_back(atan2(tgl.y(), tgl.x()));
+    }
 }
 
-void GraphSolverArs::estimate(const std::vector<scan_overlap::Node>& nodes,
-                  const scan_overlap::VectorTransform2& odoms,
-                  const std::vector<scan_overlap::Edge>& edges,
-                  std::vector<double>& angles) {
-                ars::FourierOptimizerBB1D fopt;
-                double xtol_ = 1.0;
-                fopt.setXTolerance(xtol_);
-                fopt.enableXTolerance(true);
-                fopt.enableYTolerance(false);
+void GraphSolverArs::estimate(const std::vector<scan_overlap::Node> &nodes,
+                              const scan_overlap::VectorTransform2 &odoms,
+                              const std::vector<scan_overlap::Edge> &edges,
+                              std::vector<double> &angles)
+{
+    ars::FourierOptimizerBB1D fopt;
+    double xtol_ = 1.0;
+    fopt.setXTolerance(xtol_);
+    fopt.enableXTolerance(true);
+    fopt.enableYTolerance(false);
 
-                for (int i = 1; i < nodes.size(); ++i) {
-                    const auto& nodeSrc = nodes.at(i-1);
-                    const auto& nodeDst = nodes.at(i);
-                    std::vector<double> correlationFourier;
-                    ars::computeFourierCorr(nodeSrc.coeffs, nodeDst.coeffs, correlationFourier);
-                    fopt.setCoefficients(correlationFourier);
+    angles.push_back(.0);
+    for (int i = 1; i < nodes.size(); ++i)
+    {
+        const auto &nodeSrc = nodes.at(i - 1);
+        const auto &nodeDst = nodes.at(i);
+        std::vector<double> correlationFourier;
+        ars::computeFourierCorr(nodeSrc.coeffs, nodeDst.coeffs, correlationFourier);
+        fopt.setCoefficients(correlationFourier);
 
-                    double tMax, fLow, fUp;
-                    fopt.findGlobalMax(.0, M_PI, tMax, fLow, fUp);
-                    angles.push_back(tMax);
-                }
+        double tMax, fLow, fUp;
+        fopt.findGlobalMax(.0, M_PI, tMax, fLow, fUp);
+        tMax = tMax - (floor(tMax / M_PI) * M_PI);
+        angles.push_back(tMax + angles[i - 1]);
+    }
+    angles.erase(angles.begin());
+}
+
+void GraphSolverArsGraph::estimate(const std::vector<scan_overlap::Node> &nodes,
+                              const scan_overlap::VectorTransform2 &odoms,
+                              const std::vector<scan_overlap::Edge> &edges,
+                              std::vector<double> &angles)
+{
+    ars::ArsGraph::Ptr graph(new ars::ArsGraph);
+    ars::ArsGraphIntervalFull::Ptr interval(new ars::ArsGraphIntervalFull); 
+    graph->setFourierOrder(30);
+
+    std::map<int, int> idToArsId;
+
+    for (int i = 1; i < nodes.size(); ++i){
+        const auto &n = nodes.at(i);
+        graph->addNode(n.coeffs);
+        idToArsId[n.id] = i;
+    }
+
+    for(const auto& edge : edges){
+        int src = idToArsId[edge.src];
+        int dst = idToArsId[edge.dst];
+        graph->addEdgeWithDerivative(src, dst);
+    }
+
+    interval->initWithStationary(graph);
+    ars::ArsGraphSolver solver(graph);
+
+    std::vector<double> solution;
+    double cost = 0;
+    ars::ArsGraphSolver::Statistics stats;
+    solver.solveWithStationary(solution, cost, stats, false);
+
+    angles = solution;
+    angles.erase(angles.begin());
 }
