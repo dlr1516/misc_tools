@@ -1,4 +1,5 @@
 #include <iostream>
+#include <map>
 #include <Eigen/Dense>
 #include <fstream>
 
@@ -56,7 +57,17 @@ public:
                   std::vector<double>& angles) override;
 };
 
+class GraphSolverArs : public GraphSolver {
+public:
+    GraphSolverArs() = default;
+    
+    virtual ~GraphSolverArs() = default;
 
+    virtual void estimate(const std::vector<scan_overlap::Node>& nodes,
+                  const scan_overlap::VectorTransform2& odoms,
+                  const std::vector<scan_overlap::Edge>& edges,
+                  std::vector<double>& angles) override;
+};
 
 int main(int argc, char **argv)
 {
@@ -85,58 +96,47 @@ int main(int argc, char **argv)
     /**
      * ARS
      */
+    //compute coeffs, used for both ars pairwise and ars graph
+    for(auto& n : nodes){
+        ars::AngularRadonSpectrum2d arsSrc;
 
-    ars::AngularRadonSpectrum2d arsSrc;
-    ars::AngularRadonSpectrum2d arsDst;
+        int fourierOrder = 20; // TODO: make ARS params configurable from file/command line
+        double sigma = 0.05;
 
-    int fourierOrder = 20; // TODO: make ARS params configurable from file/command line
-    double sigma = 0.05;
+        arsSrc.setARSFOrder(fourierOrder);
 
-    arsSrc.setARSFOrder(fourierOrder);
-    arsDst.setARSFOrder(fourierOrder);
+        arsSrc.initLUT(0.0001);
+        arsSrc.setComputeMode(ars::ArsKernelIsotropic2d::ComputeMode::PNEBI_LUT);
 
-    arsSrc.initLUT(0.0001);
-    arsSrc.setComputeMode(ars::ArsKernelIsotropic2d::ComputeMode::PNEBI_LUT);
+        auto timeStart = std::chrono::system_clock::now();
+        ars::VectorVector2 acesPoints1;
+        for(auto& p : n.cloud) acesPoints1.push_back(ars::Vector2(p.x(), p.y()));
 
-    auto timeStart = std::chrono::system_clock::now();
-    ars::VectorVector2 acesPoints1; // TODO: fill from graph
-    arsSrc.insertIsotropicGaussians(acesPoints1, sigma);
+        arsSrc.insertIsotropicGaussians(acesPoints1, sigma);
 
-    std::cout << "ars.coefficients().at(0) " << arsSrc.coefficients().at(0) << ", ars.coefficients().at(2) " << arsSrc.coefficients().at(2) << std::endl;
+        std::cout << "ars.coefficients().at(0) " << arsSrc.coefficients().at(0) << ", ars.coefficients().at(2) " << arsSrc.coefficients().at(2) << std::endl;
 
-    auto timeStop = std::chrono::system_clock::now();
-    double timeAvg = (double)std::chrono::duration_cast<std::chrono::milliseconds>(timeStop - timeStart).count();
-    std::cout << "insertIsotropicGaussians() " << timeAvg << " ms" << std::endl;
+        auto timeStop = std::chrono::system_clock::now();
+        double timeAvg = (double)std::chrono::duration_cast<std::chrono::milliseconds>(timeStop - timeStart).count();
+        std::cout << "insertIsotropicGaussians() " << timeAvg << " ms" << std::endl;
 
-    std::cout << "\n------\n"
-              << std::endl;
+        std::cout << "\n------\n"
+                << std::endl;
 
-    arsDst.setComputeMode(ars::ArsKernelIsotropic2d::ComputeMode::PNEBI_LUT);
+        std::cout << "\nARS Coefficients:\n";
+        std::cout << "\ti \tDownward \tLUT\n";
+        for (int i = 0; i < arsSrc.coefficients().size(); ++i)
+        {
+            std::cout << "\t" << i << " \t" << arsSrc.coefficients().at(i) << "\n";
+        }
+        std::cout << std::endl;
 
-    timeStart = std::chrono::system_clock::now();
-    arsDst.insertIsotropicGaussians(acesPoints1, sigma);
-    std::cout << ": arsDst.coefficients().at(0) " << arsDst.coefficients().at(0) << ", arsDst.coefficients().at(2) " << arsDst.coefficients().at(2) << std::endl;
-
-    timeStop = std::chrono::system_clock::now();
-    timeAvg = (double)std::chrono::duration_cast<std::chrono::milliseconds>(timeStop - timeStart).count();
-    std::cout << "insertIsotropicGaussians() " << timeAvg << " ms" << std::endl;
-
-    std::cout << "\nARS Coefficients:\n";
-    std::cout << "\ti \tDownward \tLUT\n";
-    for (int i = 0; i < arsSrc.coefficients().size() && i < arsDst.coefficients().size(); ++i)
-    {
-        std::cout << "\t" << i << " \t" << arsSrc.coefficients().at(i) << " \t" << arsDst.coefficients().at(i) << "\n";
+        n.setCoeffs(arsSrc.coefficients());
     }
-    std::cout << std::endl;
 
-    std::cout << "\nARS Coefficients:\n";
-    std::cout << "\ti \tDownward \tLUT\n";
-    for (int i = 0; i < arsSrc.coefficients().size() && i < arsDst.coefficients().size(); ++i)
-    {
-        std::cout << "\t" << i << " \t" << arsSrc.coefficients().at(i) << " \t" << arsDst.coefficients().at(i) << "\n";
-    }
-    std::cout << std::endl;
-
+    scan_overlap::Node src = nodes.front();
+    scan_overlap::Node dst = nodes.back();
+ 
     std::vector<double> funcFourierRecursDownLUT;
     std::vector<double> funcFourierRecursDown;
     int thnum = 360;
@@ -145,12 +145,12 @@ int main(int argc, char **argv)
     for (int i = 0; i < thnum; ++i)
     {
         theta = dtheta * i;
-        funcFourierRecursDownLUT.push_back(arsSrc.eval(theta));
-        funcFourierRecursDown.push_back(arsDst.eval(theta));
+        funcFourierRecursDownLUT.push_back(ars::evaluateFourier(src.coeffs, theta));
+        funcFourierRecursDown.push_back(ars::evaluateFourier(dst.coeffs, theta));
     }
 
     std::vector<double> correlationFourier;
-    ars::computeFourierCorr(arsSrc.coefficients(), arsDst.coefficients(), correlationFourier);
+    ars::computeFourierCorr(src.coeffs, dst.coeffs, correlationFourier);
 
     double arsThetaToll = 1.0f, fourierTol = 1.0f;
     double thetaMax, corrMax;
@@ -298,4 +298,27 @@ void GraphSolverVfc::estimate(const std::vector<scan_overlap::Node>& nodes,
 
                     }
                     
+}
+
+void GraphSolverArs::estimate(const std::vector<scan_overlap::Node>& nodes,
+                  const scan_overlap::VectorTransform2& odoms,
+                  const std::vector<scan_overlap::Edge>& edges,
+                  std::vector<double>& angles) {
+                ars::FourierOptimizerBB1D fopt;
+                double xtol_ = 1.0;
+                fopt.setXTolerance(xtol_);
+                fopt.enableXTolerance(true);
+                fopt.enableYTolerance(false);
+
+                for (int i = 1; i < nodes.size(); ++i) {
+                    const auto& nodeSrc = nodes.at(i-1);
+                    const auto& nodeDst = nodes.at(i);
+                    std::vector<double> correlationFourier;
+                    ars::computeFourierCorr(nodeSrc.coeffs, nodeDst.coeffs, correlationFourier);
+                    fopt.setCoefficients(correlationFourier);
+
+                    double tMax, fLow, fUp;
+                    fopt.findGlobalMax(.0, M_PI, tMax, fLow, fUp);
+                    angles.push_back(tMax);
+                }
 }

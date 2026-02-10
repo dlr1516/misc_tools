@@ -31,6 +31,7 @@ namespace scan_overlap
         int id;
         scan_overlap::Cloud cloud;
         std::vector<int> adj;
+        std::vector<double> coeffs;
 
         Node(int id_) : id(id_), cloud(), adj() {};
         
@@ -40,6 +41,10 @@ namespace scan_overlap
 
         void setCloud(const scan_overlap::Cloud& cloud_){
             cloud = cloud_;
+        }
+
+        void setCoeffs(const std::vector<double> coeffs_){
+            coeffs = coeffs_;
         }
     };
     using Graph = std::vector<Node>;
