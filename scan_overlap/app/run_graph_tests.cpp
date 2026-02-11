@@ -119,12 +119,14 @@ int main(int argc, char **argv)
 
     scan_overlap::readGraph(filenameGraph, nodes, gts, odoms, edges);
 
+    ROFL_VAR4(nodes.size(), gts.size(), odoms.size(), edges.size());
+
     /**
      * ARS
      */
     // compute coeffs, used for both ars pairwise and ars graph
 
-    if (enableArs)
+    if (enableArs || enableArsGraph)
         for (auto &n : nodes)
         {
             std::cout << "Node " << n.id << ", cloud size " << n.cloud.size() << std::endl;
@@ -156,7 +158,7 @@ int main(int argc, char **argv)
                       << std::endl;
 
             std::cout << "\nARS Coefficients:\n";
-            std::cout << "\ti \tDownward \tLUT\n";
+            std::cout << "\ti \tLUT\n";
             for (int i = 0; i < arsSrc.coefficients().size(); ++i)
             {
                 std::cout << "\t" << i << " \t" << arsSrc.coefficients().at(i) << "\n";
@@ -231,6 +233,9 @@ int main(int argc, char **argv)
         solverArs.estimate(nodes, odoms, edges, anglesArs);
     }
 
+    ROFL_VAR4(enableIcp, enableVfc, enableArs, enableArsGraph);
+    ROFL_VAR4(anglesIcp.size(), anglesVfc.size(), anglesArs.size(), anglesArsGraph.size());
+
     /**
      * Gathering results
      */
@@ -257,17 +262,22 @@ int main(int argc, char **argv)
     if (enableArsGraph)
         fileOut << "ars_graph";
     fileOut << "\n";
+    double angle0 = atan2(gts.front().linear().col(0).y(), gts.front().linear().col(0).x());
     for (int i = 0; i < nodes.size(); ++i)
     {
-        fileOut << nodes.at(i).id << "," << atan2(gts.at(i).linear().col(0).y(), gts.at(i).linear().col(0).x()) << "," << atan2(odoms.at(i).linear().col(0).y(), odoms.at(i).linear().col(0).x()) << ",";
+        fileOut << nodes.at(i).id << "," << atan2(gts.at(i).linear().col(0).y(), gts.at(i).linear().col(0).x()) - angle0 << "," << atan2(odoms.at(i).linear().col(0).y(), odoms.at(i).linear().col(0).x()) << ",";
         if (enableIcp)
-            fileOut << anglesIcp.at(i) << ",";
+            if (i < anglesIcp.size())
+                fileOut << anglesIcp.at(i) << ",";
         if (enableVfc)
-            fileOut << anglesVfc.at(i) << ",";
+            if (i < anglesVfc.size())
+                fileOut << anglesVfc.at(i) << ",";
         if (enableArs)
-            fileOut << anglesArs.at(i) << ",";
+            if (i < anglesArs.size())
+                fileOut << anglesArs.at(i) << ",";
         if (enableArsGraph)
-            fileOut << anglesArsGraph.at(i);
+            if (i < anglesArsGraph.size())
+                fileOut << anglesArsGraph.at(i);
         fileOut << "\n";
     }
 
@@ -285,6 +295,7 @@ void GraphSolverIcp::estimate(const std::vector<scan_overlap::Node> &nodes,
     scan_overlap::Transform2 transfGlobal;
 
     transfGlobal.setIdentity();
+    angles.push_back(.0);
     for (int i = 1; i < nodes.size(); ++i)
     {
         const auto &nodeSrc = nodes.at(i - 1);
@@ -311,6 +322,7 @@ void GraphSolverVfc::estimate(const std::vector<scan_overlap::Node> &nodes,
     scan_overlap::Transform2 transfGlobal;
 
     transfGlobal.setIdentity();
+    angles.push_back(.0);
     for (int i = 1; i < nodes.size(); ++i)
     {
         const auto &nodeSrc = nodes.at(i - 1);
@@ -350,7 +362,6 @@ void GraphSolverArs::estimate(const std::vector<scan_overlap::Node> &nodes,
         tMax = tMax - (floor(tMax / M_PI) * M_PI);
         angles.push_back(tMax + angles[i - 1]);
     }
-    angles.erase(angles.begin());
 }
 
 void GraphSolverArsGraph::estimate(const std::vector<scan_overlap::Node> &nodes,
@@ -364,7 +375,7 @@ void GraphSolverArsGraph::estimate(const std::vector<scan_overlap::Node> &nodes,
 
     std::map<int, int> idToArsId;
 
-    for (int i = 1; i < nodes.size(); ++i)
+    for (int i = 0; i < nodes.size(); ++i)
     {
         const auto &n = nodes.at(i);
         graph->addNode(n.coeffs);
@@ -387,5 +398,4 @@ void GraphSolverArsGraph::estimate(const std::vector<scan_overlap::Node> &nodes,
     solver.solveWithStationary(solution, cost, stats, false);
 
     angles = solution;
-    angles.erase(angles.begin());
 }
