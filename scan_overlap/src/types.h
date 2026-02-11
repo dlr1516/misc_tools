@@ -7,7 +7,6 @@
 #include <vector>
 
 #define PRINT_DIM(X) std::cout << #X << " rows " << X.rows() << " cols " << X.cols() << std::endl;
-#define RAD2DEG(X) (180.0 / M_PI * (X))
 
 namespace scan_overlap
 {
@@ -43,7 +42,7 @@ namespace scan_overlap
             cloud = cloud_;
         }
 
-        void setCoeffs(const std::vector<double> coeffs_){
+        void setCoeffs(const std::vector<double>& coeffs_){
             coeffs = coeffs_;
         }
     };
