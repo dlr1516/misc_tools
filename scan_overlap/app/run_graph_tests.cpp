@@ -90,6 +90,8 @@ public:
                           std::vector<double> &angles) override;
 };
 
+double mod180(double angle);
+
 int main(int argc, char **argv)
 {
     // reading params and graph
@@ -214,16 +216,6 @@ int main(int argc, char **argv)
     }
 
     /**
-     * ARS Graph
-     */
-    std::vector<double> anglesArsGraph;
-    if (enableArsGraph)
-    {
-        GraphSolverArsGraph solverArsGraph;
-        solverArsGraph.estimate(nodes, odoms, edges, anglesArsGraph);
-    }
-
-    /**
      * ARS
      */
     std::vector<double> anglesArs;
@@ -231,6 +223,16 @@ int main(int argc, char **argv)
     {
         GraphSolverArs solverArs;
         solverArs.estimate(nodes, odoms, edges, anglesArs);
+    }
+
+    /**
+     * ARS Graph
+     */
+    std::vector<double> anglesArsGraph;
+    if (enableArsGraph)
+    {
+        GraphSolverArsGraph solverArsGraph;
+        solverArsGraph.estimate(nodes, odoms, edges, anglesArsGraph);
     }
 
     ROFL_VAR4(enableIcp, enableVfc, enableArs, enableArsGraph);
@@ -252,32 +254,37 @@ int main(int argc, char **argv)
     std::string filenameOut = rofl::generateStampedString("results_" + methodsEnabled, ".csv");
     ROFL_VAR1(filenameOut);
     std::ofstream fileOut(filenameOut);
-    fileOut << "id,gt,odom,";
+    fileOut << "id,\tgt,\t\todom,";
     if (enableIcp)
-        fileOut << "icp,";
+        fileOut << "\t\ticp,";
     if (enableVfc)
-        fileOut << "vfc,";
+        fileOut << "\t\tvfc,";
     if (enableArs)
-        fileOut << "ars,";
+        fileOut << "\t\tars,";
     if (enableArsGraph)
-        fileOut << "ars_graph";
+        fileOut << "\t\tars_graph";
     fileOut << "\n";
-    double angle0 = atan2(gts.front().linear().col(0).y(), gts.front().linear().col(0).x());
+    const auto& gt0inv = gts.front().inverse();
+    const auto& odom0inv = odoms.front().inverse();
     for (int i = 0; i < nodes.size(); ++i)
     {
-        fileOut << nodes.at(i).id << "," << atan2(gts.at(i).linear().col(0).y(), gts.at(i).linear().col(0).x()) - angle0 << "," << atan2(odoms.at(i).linear().col(0).y(), odoms.at(i).linear().col(0).x()) << ",";
+        auto gt = gt0inv * gts.at(i);
+        auto odom = odom0inv*odoms.at(i);
+        fileOut << std::fixed << std::setprecision(5)
+                << nodes.at(i).id << ",\t" << RAD2DEG(atan2(gt.linear().col(0).y(), gt.linear().col(0).x())) 
+                << ",\t" << RAD2DEG(atan2(odom.linear().col(0).y(), odom.linear().col(0).x())) << ",\t";
         if (enableIcp)
             if (i < anglesIcp.size())
-                fileOut << anglesIcp.at(i) << ",";
+                fileOut << RAD2DEG(anglesIcp.at(i)) << ",\t";
         if (enableVfc)
             if (i < anglesVfc.size())
-                fileOut << anglesVfc.at(i) << ",";
+                fileOut << RAD2DEG(anglesVfc.at(i)) << ",\t";
         if (enableArs)
             if (i < anglesArs.size())
-                fileOut << anglesArs.at(i) << ",";
+                fileOut << RAD2DEG(anglesArs.at(i)) << ",\t";
         if (enableArsGraph)
             if (i < anglesArsGraph.size())
-                fileOut << anglesArsGraph.at(i);
+                fileOut << RAD2DEG(anglesArsGraph.at(i));
         fileOut << "\n";
     }
 
@@ -342,8 +349,8 @@ void GraphSolverArs::estimate(const std::vector<scan_overlap::Node> &nodes,
                               const std::vector<scan_overlap::Edge> &edges,
                               std::vector<double> &angles)
 {
-    ars::FourierOptimizerBB1D fopt;
-    double xtol_ = 1.0;
+    /*ars::FourierOptimizerBB1D fopt;
+    double xtol_ = DEG2RAD(1.);
     fopt.setXTolerance(xtol_);
     fopt.enableXTolerance(true);
     fopt.enableYTolerance(false);
@@ -359,9 +366,26 @@ void GraphSolverArs::estimate(const std::vector<scan_overlap::Node> &nodes,
 
         double tMax, fLow, fUp;
         fopt.findGlobalMax(.0, M_PI, tMax, fLow, fUp);
-        tMax = tMax - (floor(tMax / M_PI) * M_PI);
-        angles.push_back(tMax + angles[i - 1]);
+        //angles.push_back(mod180(tMax + angles[i - 1]));
+        angles.push_back(tMax);
+        std::cout << RAD2DEG(tMax) << ",";
     }
+    std::cout << std::endl;*/
+    double xtol_ = DEG2RAD(.5);
+    angles.push_back(.0);
+
+    for (int i = 1; i < nodes.size(); ++i)
+    {
+        double tMax, fMax;
+        const auto &nodeSrc = nodes.at(i - 1);
+        const auto &nodeDst = nodes.at(i);
+        std::vector<double> correlationFourier;
+        ars::computeFourierCorr(nodeSrc.coeffs, nodeDst.coeffs, correlationFourier);
+        ars::findGlobalMaxBBFourier(correlationFourier, .0, M_PI, xtol_, .0, tMax, fMax);
+        angles.push_back(mod180(tMax + angles[i - 1]));
+        std::cout << RAD2DEG(tMax) << ",";
+    }
+    std::cout << std::endl;
 }
 
 void GraphSolverArsGraph::estimate(const std::vector<scan_overlap::Node> &nodes,
@@ -398,4 +422,8 @@ void GraphSolverArsGraph::estimate(const std::vector<scan_overlap::Node> &nodes,
     solver.solveWithStationary(solution, cost, stats, false);
 
     angles = solution;
+}
+
+double mod180(double angle){
+    return (angle - floorf(angle / M_PI) * M_PI);
 }
