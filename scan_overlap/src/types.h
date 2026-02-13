@@ -33,16 +33,18 @@ namespace scan_overlap
         std::vector<double> coeffs;
 
         Node(int id_) : id(id_), cloud(), adj() {};
-        
+
         Node(int id_, std::vector<int> adj_) : id(id_), cloud(), adj(adj_) {};
 
         Node(int id_, scan_overlap::Cloud cloud_) : id(id_), cloud(cloud_), adj() {}
 
-        void setCloud(const scan_overlap::Cloud& cloud_){
+        void setCloud(const scan_overlap::Cloud &cloud_)
+        {
             cloud = cloud_;
         }
 
-        void setCoeffs(const std::vector<double>& coeffs_){
+        void setCoeffs(const std::vector<double> &coeffs_)
+        {
             coeffs = coeffs_;
         }
     };

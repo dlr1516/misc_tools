@@ -93,3 +93,15 @@ add_executable(test_run_graph_tests
 target_link_libraries(test_run_graph_tests ${Boost_LIBRARIES} ${rofl_LIBRARIES} ${ars_LIBRARIES} icp vfc opencv_core ${PCL_LIBRARIES})
 target_compile_features(test_run_graph_tests PRIVATE cxx_std_17)
 
+add_executable(test_ars_pw
+  app/test_ars_pw.cpp
+  src/scan_overlap.cpp
+  src/transform_utils.cpp
+  src/simple_icp_registration.cpp
+  src/vfc_registration.cpp
+  src/thirdparty/libvfc/vfc.cpp
+  src/thirdparty/libicp/icp.cpp
+)
+target_link_libraries(test_ars_pw ${Boost_LIBRARIES} ${rofl_LIBRARIES} ${ars_LIBRARIES} icp vfc opencv_core ${PCL_LIBRARIES})
+target_compile_features(test_ars_pw PRIVATE cxx_std_17)
+

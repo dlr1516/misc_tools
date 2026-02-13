@@ -816,4 +816,9 @@ namespace scan_overlap
         }
     }
 
+    double mod180(double angle)
+    {
+        return (angle - floorf(angle / M_PI) * M_PI);
+    }
+
 } // namespace  scan_overlap
