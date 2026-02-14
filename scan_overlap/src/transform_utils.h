@@ -120,6 +120,8 @@ namespace scan_overlap
                    const VectorTransform2 &odoms,
                    const std::string &fileName);
 
+    double mod180(double angle);
+
 } // namespace scan_overlap
 
 #endif

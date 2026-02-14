@@ -16,7 +16,6 @@
 #include "vfc_registration.h"
 
 #include "thirdparty/libicp/icpPointToPlane.h"
-
 #include "thirdparty/libvfc/vfc.h"
 // #include "thirdparty/libvfc/featureMatch.h"
 
@@ -24,6 +23,11 @@
 
 #include <rofl/common/profiler.h>
 #include <rofl/common/io.h>
+
+#include <pcl/point_types.h>
+#include <pcl/point_cloud.h>
+#include <pcl/visualization/pcl_visualizer.h>
+#include <pcl/visualization/pcl_plotter.h>
 
 class GraphSolver
 {
@@ -90,7 +94,7 @@ public:
                           std::vector<double> &angles) override;
 };
 
-double mod180(double angle);
+void drawResults();
 
 int main(int argc, char **argv)
 {
@@ -264,14 +268,14 @@ int main(int argc, char **argv)
     if (enableArsGraph)
         fileOut << "\t\tars_graph";
     fileOut << "\n";
-    const auto& gt0inv = gts.front().inverse();
-    const auto& odom0inv = odoms.front().inverse();
+    auto gt0inv = gts.front().inverse();
+    auto odom0inv = odoms.front().inverse();
     for (int i = 0; i < nodes.size(); ++i)
     {
         auto gt = gt0inv * gts.at(i);
-        auto odom = odom0inv*odoms.at(i);
+        auto odom = odom0inv * odoms.at(i);
         fileOut << std::fixed << std::setprecision(5)
-                << nodes.at(i).id << ",\t" << RAD2DEG(atan2(gt.linear().col(0).y(), gt.linear().col(0).x())) 
+                << nodes.at(i).id << ",\t" << RAD2DEG(atan2(gt.linear().col(0).y(), gt.linear().col(0).x()))
                 << ",\t" << RAD2DEG(atan2(odom.linear().col(0).y(), odom.linear().col(0).x())) << ",\t";
         if (enableIcp)
             if (i < anglesIcp.size())
@@ -330,6 +334,7 @@ void GraphSolverVfc::estimate(const std::vector<scan_overlap::Node> &nodes,
 
     transfGlobal.setIdentity();
     angles.push_back(.0);
+    cout << "vfc: ";
     for (int i = 1; i < nodes.size(); ++i)
     {
         const auto &nodeSrc = nodes.at(i - 1);
@@ -338,6 +343,8 @@ void GraphSolverVfc::estimate(const std::vector<scan_overlap::Node> &nodes,
         vfc.setPointSetSrc(nodeSrc.cloud);
         vfc.setPointSetDst(nodeDst.cloud);
         vfc.computeRigidTransform(transfEstim, transfGuess);
+        cout << atan2(transfEstim.linear().col(0).y(), transfEstim.linear().col(0).x()) << " "
+             << atan2(transfGuess.linear().col(0).y(), transfGuess.linear().col(0).x()) << ", ";
         transfGlobal = transfGlobal * transfEstim;
         auto tgl = transfGlobal.linear().col(0);
         angles.push_back(atan2(tgl.y(), tgl.x()));
@@ -366,24 +373,54 @@ void GraphSolverArs::estimate(const std::vector<scan_overlap::Node> &nodes,
 
         double tMax, fLow, fUp;
         fopt.findGlobalMax(.0, M_PI, tMax, fLow, fUp);
-        //angles.push_back(mod180(tMax + angles[i - 1]));
+        //angles.push_back(scan_overlap::mod180(tMax + angles[i - 1]));
         angles.push_back(tMax);
         std::cout << RAD2DEG(tMax) << ",";
     }
     std::cout << std::endl;*/
-    double xtol_ = DEG2RAD(.5);
+    double xtol_ = DEG2RAD(1.);
     angles.push_back(.0);
 
+    cout << "\nArs pairwise: ";
     for (int i = 1; i < nodes.size(); ++i)
     {
         double tMax, fMax;
         const auto &nodeSrc = nodes.at(i - 1);
         const auto &nodeDst = nodes.at(i);
         std::vector<double> correlationFourier;
-        ars::computeFourierCorr(nodeSrc.coeffs, nodeDst.coeffs, correlationFourier);
-        ars::findGlobalMaxBBFourier(correlationFourier, .0, M_PI, xtol_, .0, tMax, fMax);
-        angles.push_back(mod180(tMax + angles[i - 1]));
+        ars::computeFourierCorr(nodeDst.coeffs, nodeSrc.coeffs, correlationFourier);
+        ars::findGlobalMaxBBFourier(correlationFourier, -50.0 * M_PI / 180.0, 50.0 * M_PI / 180.0, xtol_, .0, tMax, fMax);
+        angles.push_back(scan_overlap::mod180(tMax + angles[i - 1]));
         std::cout << RAD2DEG(tMax) << ",";
+
+        ROFL_VAR2(nodeSrc.id, nodeDst.id);
+        ROFL_VAR4(scan_overlap::mod180(tMax + angles[i - 1]), RAD2DEG(tMax),
+                  RAD2DEG(atan2(odoms.at(i - 1).linear().col(0).y(), odoms.at(i - 1).linear().col(0).x())), RAD2DEG(atan2(odoms.at(i).linear().col(0).y(), odoms.at(i).linear().col(0).x())));
+
+        // if (nodeSrc.id == 6586)
+        // {
+
+        //     std::cout << "correlationFourier" << std::endl;
+        //     for (int i = 0; i < 180; ++i)
+        //     {
+        //         std::cout << "\t" << i << " \t" << ars::evaluateFourier(correlationFourier, 2.0 * M_PI / 180.0 * i) << "\n";
+        //     }
+
+        //     pcl::visualization::PCLVisualizer::Ptr viewer(new pcl::visualization::PCLVisualizer);
+        //     viewer->setBackgroundColor(0, 0, 0);
+        //     pcl::PointCloud<pcl::PointXYZ>::Ptr cloudSrc(new pcl::PointCloud<pcl::PointXYZ>);
+        //     pcl::PointCloud<pcl::PointXYZ>::Ptr cloudDst(new pcl::PointCloud<pcl::PointXYZ>);
+        //     for (const auto &p : nodeSrc.cloud)
+        //         cloudSrc->push_back(pcl::PointXYZ(p.x(), p.y(), 0.f));
+        //     for (const auto &p : nodeDst.cloud)
+        //         cloudDst->push_back(pcl::PointXYZ(p.x(), p.y(), 0.f));
+        //     viewer->addPointCloud<pcl::PointXYZ>(cloudSrc, "cloudSrc");
+        //     viewer->addPointCloud<pcl::PointXYZ>(cloudDst, "cloudDst");
+        //     viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_COLOR, 1.0, 0.0, 0.0, "cloudSrc");
+        //     viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_COLOR, 0.0, 1.0, 0.0, "cloudDst");
+
+        //     viewer->spin();
+        // }
     }
     std::cout << std::endl;
 }
@@ -421,9 +458,9 @@ void GraphSolverArsGraph::estimate(const std::vector<scan_overlap::Node> &nodes,
     ars::ArsGraphSolver::Statistics stats;
     solver.solveWithStationary(solution, cost, stats, false);
 
-    angles = solution;
+    for (const auto &a : solution)
+        angles.push_back(scan_overlap::mod180(-a));
+
+    // angles = solution;
 }
 
-double mod180(double angle){
-    return (angle - floorf(angle / M_PI) * M_PI);
-}

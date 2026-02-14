@@ -8,6 +8,10 @@
 
 #define GRAPH_SIZE 10
 
+#ifndef DEG2RAD
+#define DEG2RAD(x) ((x)*0.017453293)
+#endif
+
 //Quaternion: (.0, .0, 0.009603885349331175, 0.9999538816296465)
 scan_overlap::Transform2 scanFrontToBase = 
     Eigen::Translation2d(0.30455923000105006, -0.005976866498877387) *
@@ -213,7 +217,8 @@ int main(int argc, char** argv) {
             double overlap = scan_overlap::scan_overlap(transClouds.back(), cloud);
 
             std::cout << overlap << std::endl;
-            if(overlap < .7 && overlap > .1){
+            double rot = Eigen::Rotation2Dd((gtGraph.back().inverse()*gt2DF).linear()).angle();
+            if((overlap < .7 || abs(rot) > DEG2RAD(20.0)) && overlap > .1){
                 scan_overlap::Node n(i);
                 std::string dir = base_dir + "/" + 
                     std::to_string(lastIdx) + "_" + std::to_string(i);
