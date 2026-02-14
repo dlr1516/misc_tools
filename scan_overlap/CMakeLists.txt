@@ -34,19 +34,18 @@ message(STATUS "ars_LIBRARY_DIRS ${ars_LIBRARY_DIRS}")
 message(STATUS "ars_LIBRARIES ${ars_LIBRARIES}")
 
 if(${ars_FOUND})
-include_directories(${ars_INCLUDE_DIRS})
-link_directories(${ars_LIBRARY_DIRS})
+  include_directories(${ars_INCLUDE_DIRS})
+  link_directories(${ars_LIBRARY_DIRS})
 endif()
 
 # PCL
-
-
 find_package(PCL 1.14 REQUIRED)
-
+include_directories(${PCL_INCLUDE_DIRS})
 
 # VFC
 add_library(vfc
   src/thirdparty/libvfc/vfc.cpp
+
   # src/thirdparty/libvfc/featureMatch.cpp # NOT USED anymore
 )
 
@@ -59,8 +58,7 @@ add_library(icp
   src/thirdparty/libicp/matrix.cpp
 )
 
-## EXECUTABLES
-
+# # EXECUTABLES
 add_executable(find_overlap_graph
   src/find_overlap_graph.cpp
   src/scan_overlap.cpp
@@ -93,3 +91,9 @@ add_executable(test_run_graph_tests
 target_link_libraries(test_run_graph_tests ${Boost_LIBRARIES} ${rofl_LIBRARIES} ${ars_LIBRARIES} icp vfc opencv_core ${PCL_LIBRARIES})
 target_compile_features(test_run_graph_tests PRIVATE cxx_std_17)
 
+add_executable(draw_graph_corr
+  app/draw_graph_corr.cpp
+  src/transform_utils.cpp
+)
+target_link_libraries(draw_graph_corr ${Boost_LIBRARIES} ${rofl_LIBRARIES} ${ars_LIBRARIES} ${PCL_LIBRARIES})
+target_compile_features(draw_graph_corr PRIVATE cxx_std_17)
