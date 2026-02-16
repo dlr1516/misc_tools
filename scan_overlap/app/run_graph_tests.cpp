@@ -97,7 +97,7 @@ public:
 
 void drawResults(const string& id, 
                  const std::vector<scan_overlap::Node>& nodes,
-                 const std::vector<double>& anglesGT,
+                 const scan_overlap::VectorTransform2& transGT,
                  const std::vector<double>& anglesIcp, 
                  const std::vector<double>& anglesVfc, 
                  const std::vector<double>& anglesArs, 
@@ -247,9 +247,10 @@ int main(int argc, char **argv)
     }
 
     /**
-     * groundtruth angles
+     * groundtruth elements
      */
     std::vector<double> anglesGT;
+    std::vector<double> translGT;
     auto gt0inv = gts.front().inverse();
     for (int i = 0; i < nodes.size(); ++i){
         auto gt = gt0inv * gts.at(i);
@@ -309,7 +310,7 @@ int main(int argc, char **argv)
     }
 
     string id = to_string(nodes.front().id);
-    drawResults(id, nodes, anglesGT, anglesIcp, anglesVfc, anglesArs, anglesArsGraph);
+    drawResults(id, nodes, gts, anglesIcp, anglesVfc, anglesArs, anglesArsGraph);
 
     return 0;
 }
@@ -485,13 +486,23 @@ void GraphSolverArsGraph::estimate(const std::vector<scan_overlap::Node> &nodes,
 
 void drawResults(const string& id, 
                  const std::vector<scan_overlap::Node> &nodes,
-                 const std::vector<double>& anglesGT,
+                 const scan_overlap::VectorTransform2& transGT,
                  const std::vector<double>& anglesIcp, 
                  const std::vector<double>& anglesVfc, 
                  const std::vector<double>& anglesArs, 
                  const std::vector<double>& anglesArsG){
     string plots;
     std::vector<string> datas(nodes.size() - 1);
+
+    std::vector<Eigen::Rotation2Dd> anglesGT;
+    anglesGT.push_back(Eigen::Rotation2Dd(.0));
+    std::vector<scan_overlap::Vector2> translGT;
+    translGT.push_back(scan_overlap::Vector2(.0,.0));
+    for (int i = 1; i < nodes.size(); ++i){
+        auto gt = transGT.at(i-1).inverse() * transGT.at(i);
+        anglesGT.push_back(Eigen::Rotation2Dd(gt.linear()));
+        translGT.push_back(gt.translation());
+    }
 
     if (!anglesIcp.empty()){
         plots += " $icp using 1:2 w l,";
@@ -502,6 +513,7 @@ void drawResults(const string& id,
             Eigen::Rotation2Dd rot(anglesIcp.at(i) - anglesIcp.at(i-1));
             for(const auto& p : cloud){
                 auto point = rot * p;
+                point += translGT.at(i);
                 data += (to_string(point.x()) + " " 
                     + to_string(point.y()) + "\n");
             }
@@ -517,6 +529,7 @@ void drawResults(const string& id,
             Eigen::Rotation2Dd rot(anglesVfc.at(i) - anglesVfc.at(i-1));
             for(const auto& p : cloud){
                 auto point = rot * p;
+                point += translGT.at(i);
                 data += (to_string(point.x()) + " " 
                     + to_string(point.y()) + "\n");
             }
@@ -532,6 +545,7 @@ void drawResults(const string& id,
             Eigen::Rotation2Dd rot(anglesArs.at(i) - anglesArs.at(i-1));
             for(const auto& p : cloud){
                 auto point = rot * p;
+                point += translGT.at(i);
                 data += (to_string(point.x()) + " " 
                     + to_string(point.y()) + "\n");
             }
@@ -547,6 +561,7 @@ void drawResults(const string& id,
             Eigen::Rotation2Dd rot(anglesArsG.at(i) - anglesArsG.at(i-1));
             for(const auto& p : cloud){
                 auto point = rot * p;
+                point += translGT.at(i);
                 data += (to_string(point.x()) + " " 
                     + to_string(point.y()) + "\n");
             }
@@ -564,9 +579,10 @@ void drawResults(const string& id,
             const auto& cloud = nodes.at(i).cloud;
             string& data = datas.at(i-1); 
             data += "$gt << EOD\n";
-            Eigen::Rotation2Dd rot(anglesGT.at(i) - anglesGT.at(i-1));
+            Eigen::Rotation2Dd rot = anglesGT.at(i);
             for(const auto& p : cloud){
                 auto point = rot * p;
+                point += translGT.at(i);
                 data += (to_string(point.x()) + " " 
                     + to_string(point.y()) + "\n");
             }
