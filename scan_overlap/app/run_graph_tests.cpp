@@ -2,6 +2,7 @@
 #include <map>
 #include <Eigen/Dense>
 #include <fstream>
+#include <filesystem>
 
 #include <rofl/common/param_map.h>
 
@@ -94,7 +95,13 @@ public:
                           std::vector<double> &angles) override;
 };
 
-void drawResults();
+void drawResults(const string& id, 
+                 const std::vector<scan_overlap::Node>& nodes,
+                 const std::vector<double>& anglesGT,
+                 const std::vector<double>& anglesIcp, 
+                 const std::vector<double>& anglesVfc, 
+                 const std::vector<double>& anglesArs, 
+                 const std::vector<double>& anglesArsG);
 
 int main(int argc, char **argv)
 {
@@ -239,6 +246,16 @@ int main(int argc, char **argv)
         solverArsGraph.estimate(nodes, odoms, edges, anglesArsGraph);
     }
 
+    /**
+     * groundtruth angles
+     */
+    std::vector<double> anglesGT;
+    auto gt0inv = gts.front().inverse();
+    for (int i = 0; i < nodes.size(); ++i){
+        auto gt = gt0inv * gts.at(i);
+        anglesGT.push_back(atan2(gt.linear().col(0).y(), gt.linear().col(0).x()));
+    }
+
     ROFL_VAR4(enableIcp, enableVfc, enableArs, enableArsGraph);
     ROFL_VAR4(anglesIcp.size(), anglesVfc.size(), anglesArs.size(), anglesArsGraph.size());
 
@@ -268,14 +285,13 @@ int main(int argc, char **argv)
     if (enableArsGraph)
         fileOut << "\t\tars_graph";
     fileOut << "\n";
-    auto gt0inv = gts.front().inverse();
+
     auto odom0inv = odoms.front().inverse();
     for (int i = 0; i < nodes.size(); ++i)
     {
-        auto gt = gt0inv * gts.at(i);
         auto odom = odom0inv * odoms.at(i);
         fileOut << std::fixed << std::setprecision(5)
-                << nodes.at(i).id << ",\t" << RAD2DEG(atan2(gt.linear().col(0).y(), gt.linear().col(0).x()))
+                << nodes.at(i).id << ",\t" << RAD2DEG(anglesGT.at(i))
                 << ",\t" << RAD2DEG(atan2(odom.linear().col(0).y(), odom.linear().col(0).x())) << ",\t";
         if (enableIcp)
             if (i < anglesIcp.size())
@@ -291,6 +307,9 @@ int main(int argc, char **argv)
                 fileOut << RAD2DEG(anglesArsGraph.at(i));
         fileOut << "\n";
     }
+
+    string id = to_string(nodes.front().id);
+    drawResults(id, nodes, anglesGT, anglesIcp, anglesVfc, anglesArs, anglesArsGraph);
 
     return 0;
 }
@@ -462,5 +481,123 @@ void GraphSolverArsGraph::estimate(const std::vector<scan_overlap::Node> &nodes,
         angles.push_back(scan_overlap::mod180(-a));
 
     // angles = solution;
+}
+
+void drawResults(const string& id, 
+                 const std::vector<scan_overlap::Node> &nodes,
+                 const std::vector<double>& anglesGT,
+                 const std::vector<double>& anglesIcp, 
+                 const std::vector<double>& anglesVfc, 
+                 const std::vector<double>& anglesArs, 
+                 const std::vector<double>& anglesArsG){
+    string plots;
+    std::vector<string> datas(nodes.size() - 1);
+
+    if (!anglesIcp.empty()){
+        plots += " $icp using 1:2 w l,";
+        for(int i = 1; i < nodes.size(); i++){
+            const auto& cloud = nodes.at(i).cloud;
+            string& data = datas.at(i-1); 
+            data += "$icp << EOD\n";
+            Eigen::Rotation2Dd rot(anglesIcp.at(i) - anglesIcp.at(i-1));
+            for(const auto& p : cloud){
+                auto point = rot * p;
+                data += (to_string(point.x()) + " " 
+                    + to_string(point.y()) + "\n");
+            }
+            data += "EOD\n";
+        }
+    }
+    if (!anglesVfc.empty()){
+        plots += " $vfc using 1:2 w l,";
+        for(int i = 1; i < nodes.size(); i++){
+            const auto& cloud = nodes.at(i).cloud;
+            string& data = datas.at(i-1); 
+            data += "$vfc << EOD\n";
+            Eigen::Rotation2Dd rot(anglesVfc.at(i) - anglesVfc.at(i-1));
+            for(const auto& p : cloud){
+                auto point = rot * p;
+                data += (to_string(point.x()) + " " 
+                    + to_string(point.y()) + "\n");
+            }
+            data += "EOD\n";
+        }
+    }
+    if (!anglesArs.empty()){
+        plots += " $ars using 1:2 w l,";
+        for(int i = 1; i < nodes.size(); i++){
+            const auto& cloud = nodes.at(i).cloud;
+            string& data = datas.at(i-1); 
+            data += "$ars << EOD\n";
+            Eigen::Rotation2Dd rot(anglesArs.at(i) - anglesArs.at(i-1));
+            for(const auto& p : cloud){
+                auto point = rot * p;
+                data += (to_string(point.x()) + " " 
+                    + to_string(point.y()) + "\n");
+            }
+            data += "EOD\n";
+        }
+    }
+    if (!anglesArsG.empty()){
+        plots += " $arsg using 1:2 w l,";
+        for(int i = 1; i < nodes.size(); i++){
+            const auto& cloud = nodes.at(i).cloud;
+            string& data = datas.at(i-1); 
+            data += "$arsg << EOD\n";
+            Eigen::Rotation2Dd rot(anglesArsG.at(i) - anglesArsG.at(i-1));
+            for(const auto& p : cloud){
+                auto point = rot * p;
+                data += (to_string(point.x()) + " " 
+                    + to_string(point.y()) + "\n");
+            }
+            data += "EOD\n";
+        }
+    }
+    if(plots.length() > 0){
+        string dir("./" + id + "_graphs/");
+        std::filesystem::path path(dir);
+
+        plots = "plot" + plots;
+        plots += " $gt using 1:2 w l, $prev using 1:2 w l";
+
+        for(int i = 1; i < nodes.size(); i++){
+            const auto& cloud = nodes.at(i).cloud;
+            string& data = datas.at(i-1); 
+            data += "$gt << EOD\n";
+            Eigen::Rotation2Dd rot(anglesGT.at(i) - anglesGT.at(i-1));
+            for(const auto& p : cloud){
+                auto point = rot * p;
+                data += (to_string(point.x()) + " " 
+                    + to_string(point.y()) + "\n");
+            }
+            data += "EOD\n";
+        }
+
+        for(int i = 1; i < nodes.size(); i++){
+            const auto& cloud = nodes.at(i-1).cloud;
+            string& data = datas.at(i-1); 
+            data += "$prev << EOD\n";
+            for(const auto& p : cloud){
+                data += (to_string(p.x()) + " " 
+                    + to_string(p.y()) + "\n");
+            }
+            data += "EOD\n";
+        }
+
+        //create dir
+        if (!(std::filesystem::exists(path))) {
+        std::cout << "Visualization directory doesn't Exists" << std::endl;
+        if (std::filesystem::create_directories(path))
+            std::cout << "....Successfully Created !" << std::endl;
+        }
+        for(int i = 0; i < datas.size(); i++){
+            const auto& n = nodes.at(i+1);
+            const auto& prevCloud = nodes.at(i).cloud;
+            string filename(dir + to_string(n.id) + ".plot");
+            ofstream file(filename);
+            file << datas.at(i) << plots;
+            file.close();
+        }
+    }
 }
 
