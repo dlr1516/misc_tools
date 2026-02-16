@@ -821,4 +821,9 @@ namespace scan_overlap
         return (angle - floorf(angle / M_PI) * M_PI);
     }
 
+    double squaredDistance2D(const Vector2& p1, const Vector2& p2){
+        return pow(p2.x() - p1.x(), 2) + 
+                pow(p2.y() - p1.y(), 2);
+    }
+
 } // namespace  scan_overlap

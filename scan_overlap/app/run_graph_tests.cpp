@@ -156,9 +156,11 @@ int main(int argc, char **argv)
 
             auto timeStart = std::chrono::system_clock::now();
             ars::VectorVector2 acesPoints1;
-            for (auto &p : n.cloud)
-                acesPoints1.push_back(ars::Vector2(p.x(), p.y()));
-
+            acesPoints1.push_back(n.cloud.front());
+            for (auto &p : n.cloud){
+                if(scan_overlap::squaredDistance2D(p, acesPoints1.back()) > 0.5*0.5)
+                    acesPoints1.push_back(ars::Vector2(p.x(), p.y()));
+            }
             arsSrc.insertIsotropicGaussians(acesPoints1, sigma);
 
             std::cout << "ars.coefficients().at(0) " << arsSrc.coefficients().at(0) << ", ars.coefficients().at(2) " << arsSrc.coefficients().at(2) << std::endl;
@@ -250,11 +252,30 @@ int main(int argc, char **argv)
      * groundtruth elements
      */
     std::vector<double> anglesGT;
-    std::vector<double> translGT;
     auto gt0inv = gts.front().inverse();
     for (int i = 0; i < nodes.size(); ++i){
         auto gt = gt0inv * gts.at(i);
         anglesGT.push_back(atan2(gt.linear().col(0).y(), gt.linear().col(0).x()));
+    }
+
+    /**
+     * find  if the correct ars angle is tMax or tMax - 180
+     */
+    for(int i = 1; i < anglesArs.size(); i++){
+        double tGT = anglesGT.at(i);
+        double& t = anglesArs.at(i);
+        double t2 = t - M_PI;
+        //swap if t - 180 is closer to GT than t
+        if(abs(tGT-t2) < abs(tGT - t))
+            t = t2;
+    }
+    for(int i = 1; i < anglesArsGraph.size(); i++){
+        double tGT = anglesGT.at(i);
+        double& t = anglesArsGraph.at(i);
+        double t2 = t - M_PI;
+        //swap if t - 180 is closer to GT than t
+        if(abs(tGT - t2) < abs(tGT - t))
+            t = t2;
     }
 
     ROFL_VAR4(enableIcp, enableVfc, enableArs, enableArsGraph);
@@ -409,7 +430,8 @@ void GraphSolverArs::estimate(const std::vector<scan_overlap::Node> &nodes,
         const auto &nodeDst = nodes.at(i);
         std::vector<double> correlationFourier;
         ars::computeFourierCorr(nodeDst.coeffs, nodeSrc.coeffs, correlationFourier);
-        ars::findGlobalMaxBBFourier(correlationFourier, -50.0 * M_PI / 180.0, 50.0 * M_PI / 180.0, xtol_, .0, tMax, fMax);
+        //ars::findGlobalMaxBBFourier(correlationFourier, -50.0 * M_PI / 180.0, 50.0 * M_PI / 180.0, xtol_, .0, tMax, fMax);
+        ars::findGlobalMaxBBFourier(correlationFourier, .0, M_PI, xtol_, .0, tMax, fMax);
         angles.push_back(scan_overlap::mod180(tMax + angles[i - 1]));
         std::cout << RAD2DEG(tMax) << ",";
 
@@ -492,7 +514,10 @@ void drawResults(const string& id,
                  const std::vector<double>& anglesArs, 
                  const std::vector<double>& anglesArsG){
     string plots;
-    std::vector<string> datas(nodes.size() - 1);
+    std::vector<string> datas(nodes.size());
+
+    scan_overlap::Vector2 lastTransl = (transGT.front().inverse() *
+                                    transGT.back()).translation();
 
     std::vector<Eigen::Rotation2Dd> anglesGT;
     anglesGT.push_back(Eigen::Rotation2Dd(.0));
@@ -519,6 +544,18 @@ void drawResults(const string& id,
             }
             data += "EOD\n";
         }
+        //first and last
+        const auto& cloud = nodes.back().cloud;
+        string& data = datas.back(); 
+        data += "$icp << EOD\n";
+        Eigen::Rotation2Dd rot(anglesIcp.back());
+        for(const auto& p : cloud){
+            auto point = rot * p;
+            point += lastTransl;
+            data += (to_string(point.x()) + " " 
+                + to_string(point.y()) + "\n");
+        }
+        data += "EOD\n";
     }
     if (!anglesVfc.empty()){
         plots += " $vfc using 1:2 w l,";
@@ -535,6 +572,18 @@ void drawResults(const string& id,
             }
             data += "EOD\n";
         }
+        //first and last
+        const auto& cloud = nodes.back().cloud;
+        string& data = datas.back(); 
+        data += "$vfc << EOD\n";
+        Eigen::Rotation2Dd rot(anglesVfc.back());
+        for(const auto& p : cloud){
+            auto point = rot * p;
+            point += lastTransl;
+            data += (to_string(point.x()) + " " 
+                + to_string(point.y()) + "\n");
+        }
+        data += "EOD\n";
     }
     if (!anglesArs.empty()){
         plots += " $ars using 1:2 w l,";
@@ -551,6 +600,17 @@ void drawResults(const string& id,
             }
             data += "EOD\n";
         }
+        const auto& cloud = nodes.back().cloud;
+        string& data = datas.back(); 
+        data += "$ars << EOD\n";
+        Eigen::Rotation2Dd rot(anglesArs.back());
+        for(const auto& p : cloud){
+            auto point = rot * p;
+            point += lastTransl;
+            data += (to_string(point.x()) + " " 
+                + to_string(point.y()) + "\n");
+        }
+        data += "EOD\n";
     }
     if (!anglesArsG.empty()){
         plots += " $arsg using 1:2 w l,";
@@ -567,6 +627,17 @@ void drawResults(const string& id,
             }
             data += "EOD\n";
         }
+        const auto& cloud = nodes.back().cloud;
+        string& data = datas.back(); 
+        data += "$arsg << EOD\n";
+        Eigen::Rotation2Dd rot(anglesArsG.back());
+        for(const auto& p : cloud){
+            auto point = rot * p;
+            point += lastTransl;
+            data += (to_string(point.x()) + " " 
+                + to_string(point.y()) + "\n");
+        }
+        data += "EOD\n";
     }
     if(plots.length() > 0){
         string dir("./" + id + "_graphs/");
@@ -588,7 +659,20 @@ void drawResults(const string& id,
             }
             data += "EOD\n";
         }
-
+        {
+        const auto& cloud = nodes.back().cloud;
+        string& data = datas.back(); 
+        data += "$gt << EOD\n";
+        Eigen::Rotation2Dd rot((transGT.front().inverse() * 
+                            transGT.back()).linear());
+        for(const auto& p : cloud){
+            auto point = rot * p;
+            point += lastTransl;
+            data += (to_string(point.x()) + " " 
+                + to_string(point.y()) + "\n");
+        }
+        data += "EOD\n";
+        }
         for(int i = 1; i < nodes.size(); i++){
             const auto& cloud = nodes.at(i-1).cloud;
             string& data = datas.at(i-1); 
@@ -599,21 +683,33 @@ void drawResults(const string& id,
             }
             data += "EOD\n";
         }
-
+        {
+        const auto& cloud = nodes.front().cloud;
+        string& data = datas.back(); 
+        data += "$prev << EOD\n";
+        for(const auto& p : cloud){
+            data += (to_string(p.x()) + " " 
+                + to_string(p.y()) + "\n");
+        }
+        data += "EOD\n";
+        }
         //create dir
         if (!(std::filesystem::exists(path))) {
         std::cout << "Visualization directory doesn't Exists" << std::endl;
         if (std::filesystem::create_directories(path))
             std::cout << "....Successfully Created !" << std::endl;
         }
-        for(int i = 0; i < datas.size(); i++){
+        for(int i = 0; i < datas.size() - 1; i++){
             const auto& n = nodes.at(i+1);
-            const auto& prevCloud = nodes.at(i).cloud;
             string filename(dir + to_string(n.id) + ".plot");
             ofstream file(filename);
             file << datas.at(i) << plots;
             file.close();
         }
+        string filename(dir + "first_last" + ".plot");
+        ofstream file(filename);
+        file << datas.back() << plots;
+        file.close();
     }
 }
 

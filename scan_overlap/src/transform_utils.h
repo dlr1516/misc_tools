@@ -122,6 +122,8 @@ namespace scan_overlap
 
     double mod180(double angle);
 
+    double squaredDistance2D(const Vector2& p1, const Vector2& p2);
+
 } // namespace scan_overlap
 
 #endif
