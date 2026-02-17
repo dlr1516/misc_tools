@@ -51,9 +51,9 @@ link_directories(${G2O_LIBRARY_DIRS})
 find_package(Ceres REQUIRED)
 
 # Absl
-find_package(absl REQUIRED)
-include_directories(${absl_INCLUDE_DIRS})
-link_directories(${absl_LIBRARY_DIRS})
+# find_package(absl REQUIRED)
+# include_directories(${absl_INCLUDE_DIRS})
+# link_directories(${absl_LIBRARY_DIRS})
 
 # VFC
 add_library(vfc
