@@ -10,6 +10,8 @@
 #include <ars/utils.h>
 #include <ars/ArsGraph.h>
 #include <ars/ArsGraphSolver.h>
+#include <ars/HistogramCircularCorrelation.h>
+#include <ars/HoughSpectrum.h>
 
 #include <opencv2/core/core.hpp>
 
@@ -95,19 +97,30 @@ public:
                           std::vector<double> &angles) override;
 };
 
+class GraphSolverHS : public GraphSolver
+{
+public:
+    GraphSolverHS() = default;
+
+    virtual ~GraphSolverHS() = default;
+
+    virtual void estimate(const std::vector<scan_overlap::Node> &nodes,
+                          const scan_overlap::VectorTransform2 &odoms,
+                          const std::vector<scan_overlap::Edge> &edges,
+                          std::vector<double> &angles) override;
+};
+
 void drawResults(const string& id, 
-                 const std::vector<scan_overlap::Node>& nodes,
+                 const std::vector<scan_overlap::Node> &nodes,
                  const scan_overlap::VectorTransform2& transGT,
-                 const std::vector<double>& anglesIcp, 
-                 const std::vector<double>& anglesVfc, 
-                 const std::vector<double>& anglesArs, 
-                 const std::vector<double>& anglesArsG);
+                 const std::vector<std::vector<double>>& angles,
+                 const std::vector<std::string>& names);
 
 int main(int argc, char **argv)
 {
     // reading params and graph
     std::string filenameCfg, filenameGraph;
-    bool enableArs, enableIcp, enableVfc, enableArsGraph;
+    bool enableArs, enableIcp, enableVfc, enableArsGraph, enableHS;
     rofl::ParamMap params;
 
     // Reads params from command line
@@ -120,6 +133,7 @@ int main(int argc, char **argv)
     params.getParam<bool>("enable_icp", enableIcp, false);
     params.getParam<bool>("enable_vfc", enableVfc, false);
     params.getParam<bool>("enable_ars_graph", enableArsGraph, false);
+    params.getParam<bool>("enable_hs", enableHS, false);
 
     std::cout << "\nParams:" << std::endl;
     params.write(std::cout);
@@ -129,6 +143,8 @@ int main(int argc, char **argv)
     std::vector<scan_overlap::Node> nodes;
     scan_overlap::VectorTransform2 gts, odoms;
     std::vector<scan_overlap::Edge> edges;
+    std::vector<std::string> names;
+    std::vector<std::vector<double>> solutions;
 
     scan_overlap::readGraph(filenameGraph, nodes, gts, odoms, edges);
 
@@ -207,6 +223,16 @@ int main(int argc, char **argv)
     // double rotArs = thetaMax;
 
     /**
+     * groundtruth elements
+     */
+    std::vector<double> anglesGT;
+    auto gt0inv = gts.front().inverse();
+    for (int i = 0; i < nodes.size(); ++i){
+        auto gt = gt0inv * gts.at(i);
+        anglesGT.push_back(atan2(gt.linear().col(0).y(), gt.linear().col(0).x()));
+    }
+
+    /**
      * ICP
      */
 
@@ -215,6 +241,8 @@ int main(int argc, char **argv)
     {
         GraphSolverIcp solverIcp;
         solverIcp.estimate(nodes, odoms, edges, anglesIcp);
+        solutions.push_back(anglesIcp);
+        names.push_back("icp");
     }
 
     /**
@@ -226,6 +254,8 @@ int main(int argc, char **argv)
     {
         GraphSolverVfc solverVfc;
         solverVfc.estimate(nodes, odoms, edges, anglesVfc);
+        solutions.push_back(anglesVfc);
+        names.push_back("vfc");
     }
 
     /**
@@ -236,6 +266,18 @@ int main(int argc, char **argv)
     {
         GraphSolverArs solverArs;
         solverArs.estimate(nodes, odoms, edges, anglesArs);
+        //find  if the correct ars angle is tMax or tMax - 180
+        for(int i = 1; i < anglesArs.size(); i++){
+            double tGT = anglesGT.at(i);
+            double& t = anglesArs.at(i);
+            double t2 = t - M_PI;
+            //swap if t - 180 is closer to GT than t
+            if(abs(tGT-t2) < abs(tGT - t))
+                t = t2;
+        }
+
+        solutions.push_back(anglesArs);
+        names.push_back("ars");
     }
 
     /**
@@ -246,36 +288,41 @@ int main(int argc, char **argv)
     {
         GraphSolverArsGraph solverArsGraph;
         solverArsGraph.estimate(nodes, odoms, edges, anglesArsGraph);
+        //find  if the correct ars angle is tMax or tMax - 180
+        for(int i = 1; i < anglesArsGraph.size(); i++){
+            double tGT = anglesGT.at(i);
+            double& t = anglesArsGraph.at(i);
+            double t2 = t - M_PI;
+            //swap if t - 180 is closer to GT than t
+            if(abs(tGT-t2) < abs(tGT - t))
+                t = t2;
+        }
+
+        solutions.push_back(anglesArsGraph);
+        names.push_back("arsg");
     }
 
     /**
-     * groundtruth elements
+     * HS
      */
-    std::vector<double> anglesGT;
-    auto gt0inv = gts.front().inverse();
-    for (int i = 0; i < nodes.size(); ++i){
-        auto gt = gt0inv * gts.at(i);
-        anglesGT.push_back(atan2(gt.linear().col(0).y(), gt.linear().col(0).x()));
-    }
 
-    /**
-     * find  if the correct ars angle is tMax or tMax - 180
-     */
-    for(int i = 1; i < anglesArs.size(); i++){
-        double tGT = anglesGT.at(i);
-        double& t = anglesArs.at(i);
-        double t2 = t - M_PI;
-        //swap if t - 180 is closer to GT than t
-        if(abs(tGT-t2) < abs(tGT - t))
-            t = t2;
-    }
-    for(int i = 1; i < anglesArsGraph.size(); i++){
-        double tGT = anglesGT.at(i);
-        double& t = anglesArsGraph.at(i);
-        double t2 = t - M_PI;
-        //swap if t - 180 is closer to GT than t
-        if(abs(tGT - t2) < abs(tGT - t))
-            t = t2;
+    std::vector<double> anglesHS;
+    if (enableHS)
+    {
+        GraphSolverHS solverHS;
+        solverHS.estimate(nodes, odoms, edges, anglesHS);
+        //find  if the correct ars angle is tMax or tMax - 180
+        for(int i = 1; i < anglesHS.size(); i++){
+            double tGT = anglesGT.at(i);
+            double& t = anglesHS.at(i);
+            double t2 = t - M_PI;
+            //swap if t - 180 is closer to GT than t
+            if(abs(tGT-t2) < abs(tGT - t))
+                t = t2;
+        }
+
+        solutions.push_back(anglesHS);
+        names.push_back("hs");
     }
 
     ROFL_VAR4(enableIcp, enableVfc, enableArs, enableArsGraph);
@@ -293,6 +340,8 @@ int main(int argc, char **argv)
         methodsEnabled += "arspw_";
     if (enableArsGraph)
         methodsEnabled += "arsgraph_";
+    if (enableHS)
+        methodsEnabled += "hs_";
     ROFL_VAR1(methodsEnabled);
     std::string filenameOut = rofl::generateStampedString("results_" + methodsEnabled, ".csv");
     ROFL_VAR1(filenameOut);
@@ -306,6 +355,8 @@ int main(int argc, char **argv)
         fileOut << "\t\tars,";
     if (enableArsGraph)
         fileOut << "\t\tars_graph";
+    if (enableHS)
+        fileOut << "\t\ths,";
     fileOut << "\n";
 
     auto odom0inv = odoms.front().inverse();
@@ -326,12 +377,15 @@ int main(int argc, char **argv)
                 fileOut << RAD2DEG(anglesArs.at(i)) << ",\t";
         if (enableArsGraph)
             if (i < anglesArsGraph.size())
-                fileOut << RAD2DEG(anglesArsGraph.at(i));
+                fileOut << RAD2DEG(anglesArsGraph.at(i)) << ",\t";
+        if (enableHS)
+            if (i < anglesHS.size())
+                fileOut << RAD2DEG(anglesHS.at(i)) << ",\t";
         fileOut << "\n";
     }
 
     string id = to_string(nodes.front().id);
-    drawResults(id, nodes, gts, anglesIcp, anglesVfc, anglesArs, anglesArsGraph);
+    drawResults(id, nodes, gts, solutions, names);
 
     return 0;
 }
@@ -475,6 +529,7 @@ void GraphSolverArsGraph::estimate(const std::vector<scan_overlap::Node> &nodes,
     ars::ArsGraph::Ptr graph(new ars::ArsGraph);
     ars::ArsGraphIntervalFull::Ptr interval(new ars::ArsGraphIntervalFull);
     graph->setFourierOrder(30);
+    double xtol = DEG2RAD(1.);
 
     std::map<int, int> idToArsId;
 
@@ -493,7 +548,7 @@ void GraphSolverArsGraph::estimate(const std::vector<scan_overlap::Node> &nodes,
     }
 
     interval->initWithStationary(graph);
-    ars::ArsGraphSolver solver(graph);
+    ars::ArsGraphSolver solver(graph, xtol);
 
     std::vector<double> solution;
     double cost = 0;
@@ -506,7 +561,173 @@ void GraphSolverArsGraph::estimate(const std::vector<scan_overlap::Node> &nodes,
     // angles = solution;
 }
 
+void GraphSolverHS::estimate(const std::vector<scan_overlap::Node> &nodes,
+                             const scan_overlap::VectorTransform2 &odoms,
+                             const std::vector<scan_overlap::Edge> &edges,
+                             std::vector<double> &angles){
+    angles.push_back(.0);
+    double hsSrcExecTime, hsDstExecTime;
+    ars::HoughSpectrum hs;
+    double thetaStep = DEG2RAD(.5);
+    double rhoStep = 1.0;
+    double rhoMax = 200.0;
+
+    hs.init(thetaStep, rhoStep, rhoMax);
+
+    for(int i = 1; i < nodes.size(); i++){
+        const auto& pointsSrc = nodes[i].cloud;
+        const auto& pointsDst = nodes[i-1].cloud;
+        // Computes Hough spectra
+        hs.insertPoint(pointsSrc.begin(), pointsSrc.end());
+        Eigen::VectorXd spectrumSrc = hs.spectrum();
+
+        hs.insertPoint(pointsDst.begin(), pointsDst.end());
+        Eigen::VectorXd spectrumDst = hs.spectrum();
+        // Computes correlation of spectra
+        ars::HistogramCircularCorrelation hcc;
+        double corrTmp;
+        double corrMax = 0.0;
+        int imax = 0;
+        for (int k = 0; k < spectrumSrc.size(); ++k) {
+            hcc.computeHistogramCorrelation(spectrumSrc, spectrumDst, k, corrTmp);
+            if (corrTmp > corrMax) {
+                imax = k;
+                corrMax = corrTmp;
+            }
+        }
+        double rot = thetaStep * imax;
+        angles.push_back(scan_overlap::mod180(rot + angles[i - 1]));
+    }
+}
+
 void drawResults(const string& id, 
+                 const std::vector<scan_overlap::Node> &nodes,
+                 const scan_overlap::VectorTransform2& transGT,
+                 const std::vector<std::vector<double>>& angles,
+                 const std::vector<std::string>& names){
+    if(angles.empty()) return;
+    
+    string plots;
+    std::vector<string> datas(nodes.size());
+    string dir("./" + id + "_graphs/");
+    std::filesystem::path path(dir);
+
+    scan_overlap::Vector2 lastTransl = (transGT.front().inverse() *
+                                    transGT.back()).translation();
+
+    std::vector<Eigen::Rotation2Dd> anglesGT;
+    anglesGT.push_back(Eigen::Rotation2Dd(.0));
+    std::vector<scan_overlap::Vector2> translGT;
+    translGT.push_back(scan_overlap::Vector2(.0,.0));
+    for (int i = 1; i < nodes.size(); ++i){
+        auto gt = transGT.at(i-1).inverse() * transGT.at(i);
+        anglesGT.push_back(Eigen::Rotation2Dd(gt.linear()));
+        translGT.push_back(gt.translation());
+    }
+
+    for (int i = 0; i < angles.size(); i++){
+    	std::string name = names[i];
+    	auto& ang = angles[i];
+        plots += " $" + name + " using 1:2 w l,";
+        for(int j = 1; j < nodes.size(); j++){
+            const auto& cloud = nodes.at(j).cloud;
+            string& data = datas.at(j-1); 
+            data += "$" + name + " << EOD\n";
+            Eigen::Rotation2Dd rot(ang.at(j) - ang.at(j-1));
+            for(const auto& p : cloud){
+                auto point = rot * p;
+                point += translGT.at(j);
+                data += (to_string(point.x()) + " " 
+                    + to_string(point.y()) + "\n");
+            }
+            data += "EOD\n";
+        }
+        //first and last
+        const auto& cloud = nodes.back().cloud;
+        string& data = datas.back(); 
+        data += ("$" + name + " << EOD\n");
+        Eigen::Rotation2Dd rot(ang.back());
+        for(const auto& p : cloud){
+            auto point = rot * p;
+            point += lastTransl;
+            data += (to_string(point.x()) + " " 
+                + to_string(point.y()) + "\n");
+        }
+        data += "EOD\n";
+    }
+
+        for(int i = 1; i < nodes.size(); i++){
+            const auto& cloud = nodes.at(i).cloud;
+            string& data = datas.at(i-1); 
+            data += "$gt << EOD\n";
+            Eigen::Rotation2Dd rot = anglesGT.at(i);
+            for(const auto& p : cloud){
+                auto point = rot * p;
+                point += translGT.at(i);
+                data += (to_string(point.x()) + " " 
+                    + to_string(point.y()) + "\n");
+            }
+            data += "EOD\n";
+        }
+        {
+        const auto& cloud = nodes.back().cloud;
+        string& data = datas.back(); 
+        data += "$gt << EOD\n";
+        Eigen::Rotation2Dd rot((transGT.front().inverse() * 
+                            transGT.back()).linear());
+        for(const auto& p : cloud){
+            auto point = rot * p;
+            point += lastTransl;
+            data += (to_string(point.x()) + " " 
+                + to_string(point.y()) + "\n");
+        }
+        data += "EOD\n";
+        }
+        
+        for(int i = 1; i < nodes.size(); i++){
+            const auto& cloud = nodes.at(i-1).cloud;
+            string& data = datas.at(i-1); 
+            data += "$prev << EOD\n";
+            for(const auto& p : cloud){
+                data += (to_string(p.x()) + " " 
+                    + to_string(p.y()) + "\n");
+            }
+            data += "EOD\n";
+        }
+        {
+        const auto& cloud = nodes.front().cloud;
+        string& data = datas.back(); 
+        data += "$prev << EOD\n";
+        for(const auto& p : cloud){
+            data += (to_string(p.x()) + " " 
+                + to_string(p.y()) + "\n");
+        }
+        data += "EOD\n";
+        }
+        
+        plots = "plot" + plots;
+        plots += " $gt using 1:2 w l, $prev using 1:2 w l";
+        
+        //create dir
+        if (!(std::filesystem::exists(path))) {
+        std::cout << "Visualization directory doesn't Exists" << std::endl;
+        if (std::filesystem::create_directories(path))
+            std::cout << "....Successfully Created !" << std::endl;
+        }
+        for(int i = 0; i < datas.size() - 1; i++){
+            const auto& n = nodes.at(i+1);
+            string filename(dir + to_string(n.id) + ".plot");
+            ofstream file(filename);
+            file << datas.at(i) << plots;
+            file.close();
+        }
+        string filename(dir + "first_last" + ".plot");
+        ofstream file(filename);
+        file << datas.back() << plots;
+        file.close();
+}
+
+/*void drawResults(const string& id, 
                  const std::vector<scan_overlap::Node> &nodes,
                  const scan_overlap::VectorTransform2& transGT,
                  const std::vector<double>& anglesIcp, 
@@ -711,5 +932,4 @@ void drawResults(const string& id,
         file << datas.back() << plots;
         file.close();
     }
-}
-
+}*/
