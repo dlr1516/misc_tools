@@ -228,7 +228,7 @@ int main(int argc, char** argv) {
 
                     for(int j = 0; j < transClouds.size()-1; j++){
                         auto tCloud = transClouds[j];
-                        if(scan_overlap::scan_overlap(tCloud, cloud) > .4)
+                        if(scan_overlap::scan_overlap(tCloud, cloud) > .5)
                             n.adj.push_back(graph[j].id);
                     }
                     n.adj.push_back(graph.back().id); //adding previous node as adj, guarantees connected graph

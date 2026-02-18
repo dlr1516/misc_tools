@@ -192,7 +192,7 @@ int main(int argc, char **argv)
                 ars::VectorVector2 acesPoints1;
                 acesPoints1.push_back(n.cloud.front());
                 for (auto &p : n.cloud){
-                    if(scan_overlap::squaredDistance2D(p, acesPoints1.back()) > 0.5*0.5)
+                    if(scan_overlap::squaredDistance2D(p, acesPoints1.back()) > 0.2*0.2)
                         acesPoints1.push_back(ars::Vector2(p.x(), p.y()));
                 }
                 arsSrc.insertIsotropicGaussians(acesPoints1, sigma);
@@ -379,9 +379,9 @@ int main(int argc, char **argv)
         if (enableArs)
             fileOut << "\t\tars,";
         if (enableArsGraph)
-            fileOut << "\t\tars_graph";
+            fileOut << "\t\tars_graph,";
         if (enableHS)
-            fileOut << "\ths,";
+            fileOut << "\ths";
         fileOut << "\n";
 
         auto odom0inv = odoms.front().inverse();
@@ -405,7 +405,7 @@ int main(int argc, char **argv)
                     fileOut << RAD2DEG(anglesArsGraph.at(i)) << ",\t";
             if (enableHS)
                 if (i < anglesHS.size())
-                    fileOut << RAD2DEG(anglesHS.at(i)) << ",\t";
+                    fileOut << RAD2DEG(anglesHS.at(i));
             fileOut << "\n";
         }
 
