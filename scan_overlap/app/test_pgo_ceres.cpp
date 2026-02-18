@@ -32,8 +32,10 @@
 //
 // Minimize 0.5 (10 - x)^2 using jacobian matrix computed using
 // automatic differentiation.
+
 // #include <absl/log/initialize.h>
 #include <ceres/ceres.h>
+
 // A templated cost functor that implements the residual r = 10 -
 // x. The method operator() is templated so that we can then use an
 // automatic differentiation wrapper around it to generate its
@@ -47,6 +49,7 @@ struct CostFunctor
 		return true;
 	}
 };
+
 int main(int argc, char **argv)
 {
 	//   absl::InitializeLog();
@@ -59,7 +62,7 @@ int main(int argc, char **argv)
 	// Set up the only cost function (also known as residual). This uses
 	// auto-differentiation to obtain the derivative (jacobian).
 	ceres::CostFunction *cost_function =
-		new ceres::AutoDiffCostFunction<CostFunctor, 1, 1>(new CostFunctor);
+		new ceres::AutoDiffCostFunction<CostFunctor, 1, 1>(new CostFunctor); // !!
 	problem.AddResidualBlock(cost_function, nullptr, &x);
 	// Run the solver!
 	ceres::Solver::Options options;

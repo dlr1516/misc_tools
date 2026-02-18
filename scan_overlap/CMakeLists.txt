@@ -128,7 +128,7 @@ add_executable(draw_graph_corr
 target_link_libraries(draw_graph_corr ${Boost_LIBRARIES} ${rofl_LIBRARIES} ${ars_LIBRARIES} ${PCL_LIBRARIES})
 target_compile_features(draw_graph_corr PRIVATE cxx_std_17)
 
-# test_pgo_g2o
+# test_pgo_g2o_tutorial
 
 add_library(tutorial_slam2d_library ${G2O_LIB_TYPE}
   src/g2o/edge_se2_pointxy.cpp  src/g2o/se2.h                src/g2o/vertex_point_xy.h
@@ -147,13 +147,20 @@ set_target_properties(tutorial_slam2d_library PROPERTIES
 
 target_link_libraries(tutorial_slam2d_library g2o::core g2o::solver_eigen)
 
+add_executable(test_pgo_g2o_tutorial
+  app/test_pgo_g2o_tutorial.cpp
+)
+
+set_target_properties(test_pgo_g2o_tutorial PROPERTIES OUTPUT_NAME tutorial_slam2d)
+
+target_link_libraries(test_pgo_g2o_tutorial tutorial_slam2d_library)
+
+# test_pgo_g2o
 add_executable(test_pgo_g2o
   app/test_pgo_g2o.cpp
 )
-
-set_target_properties(test_pgo_g2o PROPERTIES OUTPUT_NAME tutorial_slam2d)
-
-target_link_libraries(test_pgo_g2o tutorial_slam2d_library)
+target_link_libraries(test_pgo_g2o ${Boost_LIBRARIES} ${rofl_LIBRARIES} ${ars_LIBRARIES} ${PCL_LIBRARIES} g2o::core g2o::solver_eigen g2o::types_slam2d g2o::types_slam3d g2o::types_sba g2o::types_data g2o::solver_csparse)
+target_compile_features(test_pgo_g2o PRIVATE cxx_std_17)
 
 # test_pgo_ceres
 add_executable(test_pgo_ceres
