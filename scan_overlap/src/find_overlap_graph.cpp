@@ -55,13 +55,10 @@ int main(int argc, char** argv) {
 
     std::vector<double> timesGt, timesScansRear,
                         timesScansFront, timesOdom;
-    scan_overlap::LaserSpecs laserSpecs;
     scan_overlap::VectorTransform3 transformsGt, transformsOdom;
-    scan_overlap::VectorTransform2 gtGraph, odomGraph;
-    std::vector<scan_overlap::Cloud> clouds, transClouds,
-                                   cloudsFront, cloudsRear;
+    scan_overlap::LaserSpecs laserSpecs;
+    std::vector<scan_overlap::Cloud> clouds, cloudsFront, cloudsRear;
     std::string base_dir = "./poly_img";
-    scan_overlap::Graph graph;
     double scanDelta;
     
     // Open file and read laser specifics
@@ -140,121 +137,131 @@ int main(int argc, char** argv) {
        clouds = cloudsFront;
     }
 
-    int lastIdx = startIdx;
-    graph.push_back(scan_overlap::Node(lastIdx));
-    {
-        scan_overlap::Cloud cloud = clouds[lastIdx];
-        double tsF = timesScansFront[lastIdx];
-        //double tsR = timesScansRear[lastIdx];
-        scan_overlap::Transform3 gt3DF, gt3DR, odom3D;
-        scan_overlap::Transform2 gt2DF, gt2DR, odom2D;
+    while(startIdx < clouds.size()){
+        scan_overlap::Graph graph;
+        scan_overlap::VectorTransform2 gtGraph, odomGraph;
+        std::vector<scan_overlap::Cloud> transClouds;
+        int lastIdx = startIdx;
 
-        if(!scan_overlap::findGtTransform(tsF, timesGt, transformsGt, gt3DF)){
-            std::cout << "Couldn't find gt transform!" << std::endl;
-            return -1;
-        }
-        scan_overlap::trans3DToTrans2D(gt3DF, gt2DF);
-
-        if(!scan_overlap::findGtTransform(tsF, timesOdom, transformsOdom, odom3D)){
-            std::cout << "Couldn't find odom transform!" << std::endl;
-            return -1;
-        }
-        scan_overlap::trans3DToTrans2D(odom3D, odom2D);
-
-        /*if(!scan_overlap::findGtTransform(tsR, timesGt, transformsGt, gt3DR)){
-            std::cout << "Couldn't find gt transform!" << std::endl;
-            return -1;
-        }
-        scan_overlap::trans3DToTrans2D(gt3DR, gt2DR);*/
-
-        /*int lastF = cloudsFront[lastIdx].size();
-        for(int i = 0; i < cloud.size(); i++){
-            if(i < lastF)   cloud[i] = gt2DF*cloud[i];
-            else            cloud[i] = gt2DR*cloud[i];
-        }*/
-        for(auto& p : cloud) p = gt2DF*p;
-        transClouds.push_back(cloud);
-        odomGraph.push_back(odom2D);
-        gtGraph.push_back(gt2DF);
-    }
-
-    bool exit = false;
-    while(graph.size() < GRAPH_SIZE && !exit){
-        exit = true;
-        for(int i = lastIdx+1; i<clouds.size(); i++){
-            scan_overlap::Cloud cloud = clouds[i];
-            double tsF = timesScansFront[i];
-            //double tsR = timesScansRear[i];
+        graph.push_back(scan_overlap::Node(lastIdx));
+        {
+            scan_overlap::Cloud cloud = clouds[lastIdx];
+            double tsF = timesScansFront[lastIdx];
+            //double tsR = timesScansRear[lastIdx];
             scan_overlap::Transform3 gt3DF, gt3DR, odom3D;
             scan_overlap::Transform2 gt2DF, gt2DR, odom2D;
 
             if(!scan_overlap::findGtTransform(tsF, timesGt, transformsGt, gt3DF)){
                 std::cout << "Couldn't find gt transform!" << std::endl;
-                break;
+                return -1;
             }
             scan_overlap::trans3DToTrans2D(gt3DF, gt2DF);
 
             if(!scan_overlap::findGtTransform(tsF, timesOdom, transformsOdom, odom3D)){
-            std::cout << "Couldn't find odom transform!" << std::endl;
-            return -1;
+                std::cout << "Couldn't find odom transform!" << std::endl;
+                return -1;
             }
             scan_overlap::trans3DToTrans2D(odom3D, odom2D);
 
             /*if(!scan_overlap::findGtTransform(tsR, timesGt, transformsGt, gt3DR)){
                 std::cout << "Couldn't find gt transform!" << std::endl;
-                break;
+                return -1;
             }
             scan_overlap::trans3DToTrans2D(gt3DR, gt2DR);*/
 
-            //points from rear are appended at the end of front
-            /*int lastF = cloudsFront[i].size();
+            /*int lastF = cloudsFront[lastIdx].size();
             for(int i = 0; i < cloud.size(); i++){
                 if(i < lastF)   cloud[i] = gt2DF*cloud[i];
                 else            cloud[i] = gt2DR*cloud[i];
             }*/
             for(auto& p : cloud) p = gt2DF*p;
-
-            double overlap = scan_overlap::scan_overlap(transClouds.back(), cloud);
-
-            std::cout << overlap << std::endl;
-            double rot = Eigen::Rotation2Dd((gtGraph.back().inverse()*gt2DF).linear()).angle();
-            if((overlap < .7 || abs(rot) > DEG2RAD(20.0)) && overlap > .1){
-                scan_overlap::Node n(i);
-                std::string dir = base_dir + "/" + 
-                    std::to_string(lastIdx) + "_" + std::to_string(i);
-                //scan_overlap::scan_overlap_visualization(transClouds.back(), cloud, dir);
-
-                for(int j = 0; j < transClouds.size()-1; j++){
-                    auto tCloud = transClouds[j];
-                    if(scan_overlap::scan_overlap(tCloud, cloud) > .4)
-                        n.adj.push_back(graph[j].id);
-                }
-                n.adj.push_back(graph.back().id); //adding previous node as adj, guarantees connected graph
-
-                graph.push_back(n);
-                transClouds.push_back(cloud);
-                odomGraph.push_back(odom2D);
-                gtGraph.push_back(gt2DF);
-                lastIdx=i;
-                exit=false;
-                break;
-            }
+            transClouds.push_back(cloud);
+            odomGraph.push_back(odom2D);
+            gtGraph.push_back(gt2DF);
         }
+
+        bool exit = false;
+        while(graph.size() < GRAPH_SIZE && !exit){
+            exit = true;
+            for(int i = lastIdx+1; i<clouds.size(); i++){
+                scan_overlap::Cloud cloud = clouds[i];
+                double tsF = timesScansFront[i];
+                //double tsR = timesScansRear[i];
+                scan_overlap::Transform3 gt3DF, gt3DR, odom3D;
+                scan_overlap::Transform2 gt2DF, gt2DR, odom2D;
+
+                if(!scan_overlap::findGtTransform(tsF, timesGt, transformsGt, gt3DF)){
+                    std::cout << "Couldn't find gt transform!" << std::endl;
+                    break;
+                }
+                scan_overlap::trans3DToTrans2D(gt3DF, gt2DF);
+
+                if(!scan_overlap::findGtTransform(tsF, timesOdom, transformsOdom, odom3D)){
+                std::cout << "Couldn't find odom transform!" << std::endl;
+                    break;
+                }
+                scan_overlap::trans3DToTrans2D(odom3D, odom2D);
+
+                /*if(!scan_overlap::findGtTransform(tsR, timesGt, transformsGt, gt3DR)){
+                    std::cout << "Couldn't find gt transform!" << std::endl;
+                    break;
+                }
+                scan_overlap::trans3DToTrans2D(gt3DR, gt2DR);*/
+
+                //points from rear are appended at the end of front
+                /*int lastF = cloudsFront[i].size();
+                for(int i = 0; i < cloud.size(); i++){
+                    if(i < lastF)   cloud[i] = gt2DF*cloud[i];
+                    else            cloud[i] = gt2DR*cloud[i];
+                }*/
+                for(auto& p : cloud) p = gt2DF*p;
+
+                double overlap = scan_overlap::scan_overlap(transClouds.back(), cloud);
+
+                std::cout << overlap << std::endl;
+                double rot = Eigen::Rotation2Dd((gtGraph.back().inverse()*gt2DF).linear()).angle();
+                if((overlap < .7 || abs(rot) > DEG2RAD(20.0)) && overlap > .1){
+                    scan_overlap::Node n(i);
+                    std::string dir = base_dir + "/" + 
+                        std::to_string(lastIdx) + "_" + std::to_string(i);
+                    //scan_overlap::scan_overlap_visualization(transClouds.back(), cloud, dir);
+
+                    for(int j = 0; j < transClouds.size()-1; j++){
+                        auto tCloud = transClouds[j];
+                        if(scan_overlap::scan_overlap(tCloud, cloud) > .4)
+                            n.adj.push_back(graph[j].id);
+                    }
+                    n.adj.push_back(graph.back().id); //adding previous node as adj, guarantees connected graph
+
+                    graph.push_back(n);
+                    transClouds.push_back(cloud);
+                    odomGraph.push_back(odom2D);
+                    gtGraph.push_back(gt2DF);
+                    lastIdx=i;
+                    exit=false;
+                    break;
+                }
+            }
+            if(exit) lastIdx = clouds.size();
+        }
+        std::cout << "Graph size: " << graph.size() << std::endl;
+
+        //saveForPlot(cloudsFront[298], cloudsRear[298], clouds[298]);
+        if(!(graph.size() < GRAPH_SIZE)){
+            for(int i = 0; i < graph.size(); i++){
+                auto n = graph[i];
+                std::cout << "id: " << n.id << ", adj: ";
+                for(auto& e : n.adj) std::cout << e << ", ";
+                std::cout << std::endl;
+            }
+
+            //scan_overlap::draw_graph(graph, transClouds);
+
+            scan_overlap::saveGraph(graph, cloudsFront, gtGraph, odomGraph, 
+                    "graph_" + std::to_string(startIdx) + ".txt");
+        }
+        startIdx = lastIdx + 1;
     }
-    std::cout << "Graph size: " << graph.size() << std::endl;
-
-    //saveForPlot(cloudsFront[298], cloudsRear[298], clouds[298]);
-
-    for(int i = 0; i < graph.size(); i++){
-        auto n = graph[i];
-        std::cout << "id: " << n.id << ", adj: ";
-        for(auto& e : n.adj) std::cout << e << ", ";
-        std::cout << std::endl;
-    }
-
-    //scan_overlap::draw_graph(graph, transClouds);
-
-    scan_overlap::saveGraph(graph, cloudsFront, gtGraph, odomGraph, "graph_" + std::to_string(startIdx) + ".txt");
 
     return 0;
 }
