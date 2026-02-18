@@ -159,8 +159,18 @@ target_link_libraries(test_pgo_g2o_tutorial tutorial_slam2d_library)
 add_executable(test_pgo_g2o
   app/test_pgo_g2o.cpp
 )
-target_link_libraries(test_pgo_g2o ${Boost_LIBRARIES} ${rofl_LIBRARIES} ${ars_LIBRARIES} ${PCL_LIBRARIES} g2o::core g2o::solver_eigen g2o::types_slam2d g2o::types_slam3d g2o::types_sba g2o::types_data g2o::solver_csparse)
+target_link_libraries(test_pgo_g2o ${Boost_LIBRARIES} ${rofl_LIBRARIES} ${ars_LIBRARIES} ${PCL_LIBRARIES} g2o::core g2o::solver_eigen g2o::types_slam2d g2o::types_slam3d g2o::types_sba g2o::solver_csparse)
 target_compile_features(test_pgo_g2o PRIVATE cxx_std_17)
+
+# test_pgo_g2o_arsgraph
+add_executable(test_pgo_g2o_arsgraph
+  app/test_pgo_g2o_arsgraph.cpp
+  src/transform_utils.cpp
+  src/simple_icp_registration.cpp
+)
+target_link_libraries(test_pgo_g2o_arsgraph ${Boost_LIBRARIES} ${rofl_LIBRARIES} ${ars_LIBRARIES} icp ${PCL_LIBRARIES}  
+  g2o::core g2o::solver_eigen g2o::types_slam2d g2o::types_slam3d g2o::types_sba g2o::solver_csparse)
+target_compile_features(test_pgo_g2o_arsgraph PRIVATE cxx_std_17)
 
 # test_pgo_ceres
 add_executable(test_pgo_ceres
