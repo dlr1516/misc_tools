@@ -178,14 +178,14 @@ int main(int argc, char **argv)
 
 	// Inserts the odometry and sensor measurements
 	int numNodes = nodes.size();
-	std::map<int, int> idToArsId;
+	std::map<int, int> idToIdx;
 
 	std::vector<g2o::VertexSE2 *> transfVertices;
 	scan_overlap::Transform2 odomOriginInverse = odoms[0].inverse();
 	for (int t = 0; t < numNodes; ++t)
 	{
 		// std::cout << "time step " << t << ":" << std::endl;
-		idToArsId[nodes[t].id] = t;
+		idToIdx[nodes[t].id] = t;
 
 		// Inserts the new robot pose as graph vertex
 		transfVertex = new g2o::VertexSE2;
@@ -218,8 +218,8 @@ int main(int argc, char **argv)
 	{
 		// Inserts the odometry edge corresponding to odometry
 		transfEdge = new g2o::EdgeSE2;
-		int src = idToArsId[edges[t].src];
-		int dst = idToArsId[edges[t].dst];
+		int src = idToIdx[edges[t].src];
+		int dst = idToIdx[edges[t].dst];
 		transfEdge->vertices()[0] = transfVertices[src];
 		transfEdge->vertices()[1] = transfVertices[dst];
 		auto cloudSrc = nodes[src].cloud;
@@ -228,11 +228,15 @@ int main(int argc, char **argv)
 		scan_overlap::Transform2 transfEstim;
 		icp.setPointSetSrc(cloudSrc);
 		icp.setPointSetDst(cloudDst);
-		auto transfGuess = scan_overlap::Transform2::Identity();
+		//auto transfGuess = scan_overlap::Transform2::Identity();
+		auto transfGuess = odoms[src].inverse() * odoms[dst];
 		icp.computeRigidTransform(transfEstim, transfGuess);
+		//std::cout << "edge " << src << "-" << dst << " icp angle guess " << 
+		//	RAD2DEG(atan2(transfEstim.linear().col(0).y(), transfEstim.linear().col(0).x())) << std::endl;
 		g2o::SE2 edgeMeasurement(transfEstim.translation().x(), transfEstim.translation().y(),
 								 atan2(transfEstim.linear().col(0).y(), transfEstim.linear().col(0).x()));
 		transfEdge->setMeasurement(edgeMeasurement);
+		//transfEdge->setMeasurementFromState();
 		transfEdge->setInformation(scan_overlap::Matrix3::Identity());
 		transfEdge->setId(t);
 		optimizer.addEdge(transfEdge);
