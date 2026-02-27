@@ -24,31 +24,31 @@
 typedef g2o::BlockSolver<g2o::BlockSolverTraits<-1, -1>> SlamBlockSolver;
 typedef g2o::LinearSolverCSparse<SlamBlockSolver::PoseMatrixType> SlamLinearSolver;
 
-class GraphSolverTransf
-{
-public:
-	GraphSolverTransf() = default;
+// class GraphSolverTransf
+// {
+// public:
+// 	GraphSolverTransf() = default;
 
-	virtual ~GraphSolverTransf() = default;
+// 	virtual ~GraphSolverTransf() = default;
 
-	virtual void estimate(const std::vector<scan_overlap::Node> &nodes,
-						  const scan_overlap::VectorTransform2 &odoms,
-						  const std::vector<scan_overlap::Edge> &edges,
-						  std::vector<scan_overlap::Transform2> &angles) = 0;
-};
+// 	virtual void estimate(const std::vector<scan_overlap::Node> &nodes,
+// 						  const scan_overlap::VectorTransform2 &odoms,
+// 						  const std::vector<scan_overlap::Edge> &edges,
+// 						  std::vector<scan_overlap::Transform2> &angles) = 0;
+// };
 
-class GraphSolverTransfIcp : public GraphSolverTransf
-{
-public:
-	GraphSolverTransfIcp() = default;
+// class GraphSolverTransfIcp : public GraphSolverTransf
+// {
+// public:
+// 	GraphSolverTransfIcp() = default;
 
-	virtual ~GraphSolverTransfIcp() = default;
+// 	virtual ~GraphSolverTransfIcp() = default;
 
-	virtual void estimate(const std::vector<scan_overlap::Node> &nodes,
-						  const scan_overlap::VectorTransform2 &odoms,
-						  const std::vector<scan_overlap::Edge> &edges,
-						  std::vector<scan_overlap::Transform2> &angles) override;
-};
+// 	virtual void estimate(const std::vector<scan_overlap::Node> &nodes,
+// 						  const scan_overlap::VectorTransform2 &odoms,
+// 						  const std::vector<scan_overlap::Edge> &edges,
+// 						  std::vector<scan_overlap::Transform2> &angles) override;
+// };
 
 int main(int argc, char **argv)
 {
@@ -65,7 +65,6 @@ int main(int argc, char **argv)
 	g2o::VertexSE2 *poseVertexPrev;
 	g2o::VertexSE2 *transfVertex;
 	g2o::EdgeSE2 *transfEdge;
-	g2o::EdgeSE2PointXY *landmarkEdge;
 	g2o::SE2 poseSE2Curr;
 
 	// Parameters
@@ -104,6 +103,9 @@ int main(int argc, char **argv)
 	params.getParam<double>("sigmaSensorBearing", sigmaSensorBearing, double(0.35));
 	params.getParam<int>("iterNum", iterNum, int(10));
 	params.getParam<bool>("enable_icp", enableIcp, true);
+
+	params.adaptTildeInPaths();
+	params.getParam<std::string>("graph", filenameGraph, std::string(""));
 
 	std::cout << "\nParams:\n";
 	params.write(std::cout);
@@ -170,54 +172,78 @@ int main(int argc, char **argv)
 	// poseVertexCurr = new g2o::VertexSE2;
 	// poseVertexCurr->setId(nodeNum);
 	// poseVertexCurr->setEstimate(origin);
-	// poseVertexCurr->setFixed(true);
 	// optimizer.addVertex(poseVertexCurr);
 	// poseNodeIds.push_back(nodeNum);
 	// nodeNum++;
 
 	// Inserts the odometry and sensor measurements
 	int numNodes = nodes.size();
+	std::map<int, int> idToIdx;
+
+	std::vector<g2o::VertexSE2 *> transfVertices;
+	scan_overlap::Transform2 odomOriginInverse = odoms[0].inverse();
 	for (int t = 0; t < numNodes; ++t)
 	{
 		// std::cout << "time step " << t << ":" << std::endl;
+		idToIdx[nodes[t].id] = t;
 
 		// Inserts the new robot pose as graph vertex
 		transfVertex = new g2o::VertexSE2;
-		transfVertex->setId(nodeNum);
-		g2o::SE2 nodePose; // = poseSE2Curr * reader.getDataItem(t).sensors[i].position; // TODO 5a
+		transfVertex->setId(nodes[t].id);
+		auto odom = odomOriginInverse * odoms[t];
+		double x = odom.translation().x();
+		double y = odom.translation().y();
+		double theta = atan2(odom.linear().col(0).y(), odom.linear().col(0).x());
+		g2o::SE2 nodePose = g2o::SE2(x, y, theta);
+		std::cout << t << ": node id " << nodes[t].id << ", odom pose " << nodePose.translation().transpose() << ", " << RAD2DEG(nodePose.rotation().angle()) << std::endl;
 		transfVertex->setEstimate(nodePose);
-
-		poseVertexPrev = (g2o::VertexSE2 *)optimizer.vertex(poseNodeIds.back());
-
+		if (t == 0) {
+			transfVertex->setFixed(true);
+		}
+		transfVertices.push_back(transfVertex);
 		optimizer.addVertex(transfVertex);
 	}
 
 	int numEdges = edges.size();
 	std::vector<scan_overlap::Transform2> transfVecIcp;
-	if (enableIcp)
-	{
-		std::cout << "Starting icp..." << std::endl;
-		GraphSolverTransfIcp solverIcp;
-		solverIcp.estimate(nodes, odoms, edges, transfVecIcp);
-		// solutions.push_back(transfVecIcp);
-		names.push_back("icp");
-	}
+	// if (enableIcp)
+	// {
+	// 	std::cout << "Starting icp..." << std::endl;
+	// 	GraphSolverTransfIcp solverIcp;
+	// 	solverIcp.estimate(nodes, odoms, edges, transfVecIcp);
+	// 	// solutions.push_back(transfVecIcp);
+	// 	names.push_back("icp");
+	// }
 	for (int t = 0; t < numEdges; ++t)
 	{
 		// Inserts the odometry edge corresponding to odometry
 		transfEdge = new g2o::EdgeSE2;
-		transfEdge->vertices()[0] = poseVertexPrev;
-		transfEdge->vertices()[1] = poseVertexCurr;
-		int src = edges[t].src;
-		int dst = edges[t].dst;
-		// transfEdge->setMeasurement(nodes[dst].);
-		// transfEdge->setInformation(odometryInfo);
+		int src = idToIdx[edges[t].src];
+		int dst = idToIdx[edges[t].dst];
+		transfEdge->vertices()[0] = transfVertices[src];
+		transfEdge->vertices()[1] = transfVertices[dst];
+		auto cloudSrc = nodes[src].cloud;
+		auto cloudDst = nodes[dst].cloud;
+		scan_overlap::SimpleIcpRegistration icp(1000);
+		scan_overlap::Transform2 transfEstim;
+		icp.setPointSetSrc(cloudSrc);
+		icp.setPointSetDst(cloudDst);
+		//auto transfGuess = scan_overlap::Transform2::Identity();
+		auto transfGuess = odoms[src].inverse() * odoms[dst];
+		icp.computeRigidTransform(transfEstim, transfGuess);
+		//std::cout << "edge " << src << "-" << dst << " icp angle guess " << 
+		//	RAD2DEG(atan2(transfEstim.linear().col(0).y(), transfEstim.linear().col(0).x())) << std::endl;
+		g2o::SE2 edgeMeasurement(transfEstim.translation().x(), transfEstim.translation().y(),
+								 atan2(transfEstim.linear().col(0).y(), transfEstim.linear().col(0).x()));
+		transfEdge->setMeasurement(edgeMeasurement);
+		//transfEdge->setMeasurementFromState();
+		transfEdge->setInformation(scan_overlap::Matrix3::Identity());
+		transfEdge->setId(t);
 		optimizer.addEdge(transfEdge);
 	}
 
 	std::cout << "graph with " << optimizer.vertices().size() << " vertices and "
 			  << optimizer.edges().size() << " edges\n"
-			  << "  poses " << poseNodeIds.size() << ", landmarks " << landmarkNodeIds.size()
 			  << std::endl;
 
 	// std::cout << "\nInitial landmarks:\n";
@@ -233,6 +259,19 @@ int main(int argc, char **argv)
 	optimizer.save("before_optimization.g2o");
 
 	optimizer.initializeOptimization();
+	optimizer.setVerbose(true);
+	auto activeVertices = optimizer.activeVertices();
+	std::cout << "Active vertices: " << activeVertices.size() << std::endl;
+	for (const auto &v : activeVertices)
+	{
+		std::cout << "  vertex id " << v->id() << std::endl;
+	}
+	auto activeEdges = optimizer.activeEdges();
+	std::cout << "Active edges: " << activeEdges.size() << std::endl;
+	for (const auto &e : activeEdges)
+	{
+		std::cout << "  edge id " << e->id() << std::endl;
+	}
 	optimizer.optimize(iterNum);
 
 	std::cout << "Save after optimization" << std::endl;
@@ -252,53 +291,42 @@ int main(int argc, char **argv)
 	//   std::cout << "  label " << landmarkLabels[i] << ": " << landmarkVertex->estimate().transpose() << "\n";
 	// }
 
+	for (int t = 0; t < numNodes; ++t)
+	{
+		auto vertex = (g2o::VertexSE2 *)optimizer.vertex(nodes[t].id);
+		auto estPose = vertex->estimate();
+		std::cout << "Node " << nodes[t].id << ": estimated pose " << estPose.translation().transpose() << ", " << RAD2DEG(estPose.rotation().angle()) << std::endl;
+	}
+
 	optimizer.clear();
 
 	return 0;
 }
 
-// int findLandmarkNodeId(const std::vector<int> &landmarkNodeIds, const std::vector<int> &landmarkLabels, int label)
+// void GraphSolverTransfIcp::estimate(const std::vector<scan_overlap::Node> &nodes,
+// 									const scan_overlap::VectorTransform2 &odoms,
+// 									const std::vector<scan_overlap::Edge> &edges,
+// 									std::vector<scan_overlap::Transform2> &transfVec)
 // {
-// 	if (landmarkNodeIds.size() != landmarkLabels.size())
+// 	scan_overlap::SimpleIcpRegistration icp(1000);
+// 	scan_overlap::Transform2 transfEstim;
+// 	scan_overlap::Transform2 transfGuess;
+// 	scan_overlap::Transform2 transfGlobal;
+
+// 	transfVec.clear();
+// 	transfGlobal.setIdentity();
+// 	transfVec.push_back(scan_overlap::Transform2::Identity());
+// 	for (int i = 1; i < nodes.size(); ++i)
 // 	{
-// 		std::cerr << "inconstent numbers of nodes " << landmarkNodeIds.size() << " and labels " << landmarkLabels.size() << std::endl;
-// 		return -1;
+// 		const auto &nodeSrc = nodes.at(i - 1);
+// 		const auto &nodeDst = nodes.at(i);
+// 		transfGuess = odoms.at(i - 1).inverse() * odoms.at(i);
+// 		icp.setPointSetSrc(nodeSrc.cloud);
+// 		icp.setPointSetDst(nodeDst.cloud);
+// 		icp.computeRigidTransform(transfEstim, transfGuess);
+// 		transfGlobal = transfGlobal * transfEstim;
+// 		auto tgl = transfGlobal.linear().col(0);
+// 		// transfVec.push_back(atan2(tgl.y(), tgl.x()));
+// 		transfVec.push_back(transfGlobal);
 // 	}
-// 	int n = landmarkNodeIds.size();
-// 	for (int i = 0; i < n; ++i)
-// 	{
-// 		if (landmarkLabels[i] == label)
-// 		{
-// 			return landmarkNodeIds[i];
-// 		}
-// 	}
-// 	return -1;
 // }
-
-void GraphSolverTransfIcp::estimate(const std::vector<scan_overlap::Node> &nodes,
-									const scan_overlap::VectorTransform2 &odoms,
-									const std::vector<scan_overlap::Edge> &edges,
-									std::vector<scan_overlap::Transform2> &transfVec)
-{
-	scan_overlap::SimpleIcpRegistration icp(1000);
-	scan_overlap::Transform2 transfEstim;
-	scan_overlap::Transform2 transfGuess;
-	scan_overlap::Transform2 transfGlobal;
-
-	transfVec.clear();
-	transfGlobal.setIdentity();
-	transfVec.push_back(scan_overlap::Transform2::Identity());
-	for (int i = 1; i < nodes.size(); ++i)
-	{
-		const auto &nodeSrc = nodes.at(i - 1);
-		const auto &nodeDst = nodes.at(i);
-		transfGuess = odoms.at(i - 1).inverse() * odoms.at(i);
-		icp.setPointSetSrc(nodeSrc.cloud);
-		icp.setPointSetDst(nodeDst.cloud);
-		icp.computeRigidTransform(transfEstim, transfGuess);
-		transfGlobal = transfGlobal * transfEstim;
-		auto tgl = transfGlobal.linear().col(0);
-		// transfVec.push_back(atan2(tgl.y(), tgl.x()));
-		transfVec.push_back(transfGlobal);
-	}
-}

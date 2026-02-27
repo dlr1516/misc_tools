@@ -19,9 +19,15 @@
 
 #include "transform_utils.h"
 
+using namespace std::chrono_literals;
+
 struct CorrelationPlot {
     int isrc;
     int idst;
+    std::vector<double> tMax;
+    std::vector<double> fMax;
+    std::vector<double> gtX;
+    std::vector<double> gtY;
     std::vector<double> angles;
     std::vector<double> values;
 };
@@ -42,7 +48,7 @@ void keyboardEventOccurred(vtkObject* caller,
 int main(int argc, char* argv[]) {
     std::string filenameCfg, filenameGraph;
     int fourierOrder, angleNum;
-    double sigma;
+    double sigma, xtol, tMax, fMax;
     rofl::ParamMap params;
 
     // Reads params from command line
@@ -54,6 +60,8 @@ int main(int argc, char* argv[]) {
     params.getParam<int>("fourierOrder", fourierOrder, 30);
     params.getParam<int>("angleNum", angleNum, 360);
     params.getParam<double>("sigma", sigma, 0.05);
+    params.getParam<double>("xtol", xtol, 1.0);
+    xtol = DEG2RAD(xtol); 
 
     std::cout << "\nParams:" << std::endl;
     params.write(std::cout);
@@ -95,18 +103,31 @@ int main(int argc, char* argv[]) {
                       << ") has invalid node indices." << std::endl;
             continue;
         }
+        int srcIdx = indexToPos[e.src];
+        int dstIdx = indexToPos[e.dst];
         std::cout << "Edge (" << e.src << ", " << e.dst << ") -> nodes ("
-                  << indexToPos[e.src] << ", " << indexToPos[e.dst] << ")"
+                  << srcIdx << ", " << dstIdx << ")"
                   << std::endl;
-        const auto& nodeSrc = nodes[indexToPos[e.src]];
-        const auto& nodeDst = nodes[indexToPos[e.dst]];
+        const auto& nodeSrc = nodes[srcIdx];
+        const auto& nodeDst = nodes[dstIdx];
         std::vector<double> correlationFourier;
-        ars::computeFourierCorr(nodeSrc.coeffs, nodeDst.coeffs,
+        ars::computeFourierCorr(nodeDst.coeffs, nodeSrc.coeffs,
                                 correlationFourier);
+        ars::findGlobalMaxBBFourier(correlationFourier, .0, M_PI, xtol, .0, tMax, fMax);
+        tMax=RAD2DEG(tMax);
 
         CorrelationPlot plot;
         plot.isrc = e.src;
         plot.idst = e.dst;
+        //plot.tMax.push_back(tMax);
+        plot.tMax.push_back(tMax);
+        //plot.fMax.push_back(0.0);
+        plot.fMax.push_back(fMax); 
+
+        Eigen::Matrix2d rotm = (gts[srcIdx].inverse() * gts[dstIdx]).rotation(); 
+        double gtTheta = RAD2DEG( scan_overlap::mod180( atan2(rotm(1,0), rotm(0,0))) );
+        plot.gtX.push_back(gtTheta); 
+        plot.gtY.push_back(fMax); 
         for (int i = 0; i < angleNum; ++i) {
             plot.angles.push_back(180.0 * i / angleNum);
             plot.values.push_back(ars::evaluateFourier(
@@ -134,18 +155,18 @@ int main(int argc, char* argv[]) {
         vtkCommand::KeyPressEvent, keypressCallback);
 
     current_plot = 0;
+    //plotter->setYRange(0.0, 1.25 * correlationPlots[current_plot].fMax[0]); 
     plotter->addPlotData(correlationPlots[current_plot].angles,
-                         correlationPlots[current_plot].values);
+                         correlationPlots[current_plot].values,
+                        "corr");
+    plotter->addPlotData(correlationPlots[current_plot].tMax, correlationPlots[current_plot].fMax,"max", vtkChart::POINTS);
+    plotter->addPlotData(correlationPlots[current_plot].gtX, correlationPlots[current_plot].gtY,"gt", vtkChart::POINTS);
     std::stringstream ss;
     ss << "Correlation between node " << correlationPlots[current_plot].isrc
        << " and node " << correlationPlots[current_plot].idst;
     plotter->setTitle(ss.str().c_str());
     plotter->spin();
 
-    // while (plotter->wasStopped()) {
-    //     plotter->spinOnce(100);
-    //     std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    // }
 
     return 0;
 }
@@ -188,7 +209,9 @@ void keyboardEventOccurred(vtkObject* caller,
 
         plotter->clearPlots();
         plotter->addPlotData(correlationPlots[current_plot].angles,
-                             correlationPlots[current_plot].values);
+                             correlationPlots[current_plot].values, "corr");
+        plotter->addPlotData(correlationPlots[current_plot].tMax, correlationPlots[current_plot].fMax, "max", vtkChart::POINTS);
+        plotter->addPlotData(correlationPlots[current_plot].gtX, correlationPlots[current_plot].gtY,"gt", vtkChart::POINTS);
         ss << "Correlation between node " << correlationPlots[current_plot].isrc
            << " and node " << correlationPlots[current_plot].idst;
         plotter->setTitle(ss.str().c_str());

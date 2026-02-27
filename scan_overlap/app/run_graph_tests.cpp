@@ -6,6 +6,17 @@
 
 #include <rofl/common/param_map.h>
 
+#include <g2o/types/slam2d/vertex_se2.h>
+#include <g2o/types/slam2d/vertex_point_xy.h>
+#include <g2o/types/slam2d/edge_se2.h>
+#include <g2o/types/slam2d/edge_se2_pointxy.h>
+#include "g2o/core/sparse_optimizer.h"
+#include "g2o/core/block_solver.h"
+#include "g2o/core/factory.h"
+#include "g2o/core/optimization_algorithm_factory.h"
+#include "g2o/core/optimization_algorithm_gauss_newton.h"
+#include "g2o/solvers/csparse/linear_solver_csparse.h"
+
 #include <ars/ars2d.h>
 #include <ars/utils.h>
 #include <ars/ArsGraph.h>
@@ -31,6 +42,9 @@
 #include <pcl/point_cloud.h>
 #include <pcl/visualization/pcl_visualizer.h>
 #include <pcl/visualization/pcl_plotter.h>
+
+typedef g2o::BlockSolver<g2o::BlockSolverTraits<-1, -1>> SlamBlockSolver;
+typedef g2o::LinearSolverCSparse<SlamBlockSolver::PoseMatrixType> SlamLinearSolver;
 
 class GraphSolver
 {
@@ -110,6 +124,19 @@ public:
                           std::vector<double> &angles) override;
 };
 
+class GraphSolverG2O : public GraphSolver
+{
+public:
+    GraphSolverG2O() = default;
+
+    virtual ~GraphSolverG2O() = default;
+
+    virtual void estimate(const std::vector<scan_overlap::Node> &nodes,
+                          const scan_overlap::VectorTransform2 &odoms,
+                          const std::vector<scan_overlap::Edge> &edges,
+                          std::vector<double> &angles) override;
+};
+
 void drawResults(const string& id, 
                  const std::vector<scan_overlap::Node> &nodes,
                  const scan_overlap::VectorTransform2& transGT,
@@ -120,7 +147,7 @@ int main(int argc, char **argv)
 {
     // reading params and graph
     std::string filenameCfg, filenameGraph, dirnameGraph;
-    bool enableArs, enableIcp, enableVfc, 
+    bool enableArs, enableIcp, enableVfc, enableG2o, 
         enableArsGraph, enableHS, batch;
     std::vector<std::string> filenames;
     rofl::ParamMap params;
@@ -137,6 +164,7 @@ int main(int argc, char **argv)
     params.getParam<bool>("enable_vfc", enableVfc, false);
     params.getParam<bool>("enable_ars_graph", enableArsGraph, false);
     params.getParam<bool>("enable_hs", enableHS, false);
+    params.getParam<bool>("enable_g2o", enableG2o, false);
     params.getParam<bool>("batch", batch, false);
 
     std::cout << "\nParams:" << std::endl;
@@ -192,7 +220,7 @@ int main(int argc, char **argv)
                 ars::VectorVector2 acesPoints1;
                 acesPoints1.push_back(n.cloud.front());
                 for (auto &p : n.cloud){
-                    if(scan_overlap::squaredDistance2D(p, acesPoints1.back()) > 0.2*0.2)
+                    //if(scan_overlap::squaredDistance2D(p, acesPoints1.back()) > 0.2*0.2)
                         acesPoints1.push_back(ars::Vector2(p.x(), p.y()));
                 }
                 arsSrc.insertIsotropicGaussians(acesPoints1, sigma);
@@ -217,29 +245,6 @@ int main(int argc, char **argv)
 
                 n.setCoeffs(arsSrc.coefficients());
             }
-
-        // scan_overlap::Node src = nodes.front();
-        // scan_overlap::Node dst = nodes.back();
-
-        // std::vector<double> funcFourierRecursDownLUT;
-        // std::vector<double> funcFourierRecursDown;
-        // int thnum = 360;
-        // double dtheta = M_PI / thnum;
-        // double theta;
-        // for (int i = 0; i < thnum; ++i)
-        // {
-        //     theta = dtheta * i;
-        //     funcFourierRecursDownLUT.push_back(ars::evaluateFourier(src.coeffs, theta));
-        //     funcFourierRecursDown.push_back(ars::evaluateFourier(dst.coeffs, theta));
-        // }
-
-        // std::vector<double> correlationFourier;
-        // ars::computeFourierCorr(src.coeffs, dst.coeffs, correlationFourier);
-
-        // double arsThetaToll = 1.0f, fourierTol = 1.0f;
-        // double thetaMax, corrMax;
-        // ars::findGlobalMaxBBFourier(correlationFourier, 0.0, M_PI, arsThetaToll, fourierTol, thetaMax, corrMax);
-        // double rotArs = thetaMax;
 
         /**
          * groundtruth elements
@@ -326,6 +331,20 @@ int main(int argc, char **argv)
         }
 
         /**
+         * G2O
+         */
+
+        std::vector<double> anglesG2o;
+        if (enableG2o)
+        {
+            std::cout << "Starting g2o..." << std::endl;
+            GraphSolverG2O solverG2o;
+            solverG2o.estimate(nodes, odoms, edges, anglesG2o);
+            solutions.push_back(anglesG2o);
+            names.push_back("g2o");
+        }
+
+        /**
          * HS
          */
 
@@ -365,6 +384,8 @@ int main(int argc, char **argv)
             methodsEnabled += "arspw_";
         if (enableArsGraph)
             methodsEnabled += "arsgraph_";
+        if (enableG2o)
+            methodsEnabled += "g2o_";
         if (enableHS)
             methodsEnabled += "hs_";
         ROFL_VAR1(methodsEnabled);
@@ -380,8 +401,10 @@ int main(int argc, char **argv)
             fileOut << "\t\tars,";
         if (enableArsGraph)
             fileOut << "\t\tars_graph,";
+        if (enableG2o)
+            fileOut << "\tg2o,";
         if (enableHS)
-            fileOut << "\ths";
+            fileOut << "\t\ths";
         fileOut << "\n";
 
         auto odom0inv = odoms.front().inverse();
@@ -403,6 +426,9 @@ int main(int argc, char **argv)
             if (enableArsGraph)
                 if (i < anglesArsGraph.size())
                     fileOut << RAD2DEG(anglesArsGraph.at(i)) << ",\t";
+            if (enableG2o)
+                if (i < anglesG2o.size())
+                    fileOut << RAD2DEG(anglesG2o.at(i)) << ",\t";
             if (enableHS)
                 if (i < anglesHS.size())
                     fileOut << RAD2DEG(anglesHS.at(i));
@@ -454,7 +480,6 @@ void GraphSolverVfc::estimate(const std::vector<scan_overlap::Node> &nodes,
 
     transfGlobal.setIdentity();
     angles.push_back(.0);
-    cout << "vfc: ";
     for (int i = 1; i < nodes.size(); ++i)
     {
         const auto &nodeSrc = nodes.at(i - 1);
@@ -476,32 +501,9 @@ void GraphSolverArs::estimate(const std::vector<scan_overlap::Node> &nodes,
                               const std::vector<scan_overlap::Edge> &edges,
                               std::vector<double> &angles)
 {
-    /*ars::FourierOptimizerBB1D fopt;
-    double xtol_ = DEG2RAD(1.);
-    fopt.setXTolerance(xtol_);
-    fopt.enableXTolerance(true);
-    fopt.enableYTolerance(false);
-
-    angles.push_back(.0);
-    for (int i = 1; i < nodes.size(); ++i)
-    {
-        const auto &nodeSrc = nodes.at(i - 1);
-        const auto &nodeDst = nodes.at(i);
-        std::vector<double> correlationFourier;
-        ars::computeFourierCorr(nodeSrc.coeffs, nodeDst.coeffs, correlationFourier);
-        fopt.setCoefficients(correlationFourier);
-
-        double tMax, fLow, fUp;
-        fopt.findGlobalMax(.0, M_PI, tMax, fLow, fUp);
-        //angles.push_back(scan_overlap::mod180(tMax + angles[i - 1]));
-        angles.push_back(tMax);
-        std::cout << RAD2DEG(tMax) << ",";
-    }
-    std::cout << std::endl;*/
     double xtol_ = DEG2RAD(1.);
     angles.push_back(.0);
 
-    cout << "\nArs pairwise: ";
     for (int i = 1; i < nodes.size(); ++i)
     {
         double tMax, fMax;
@@ -512,36 +514,10 @@ void GraphSolverArs::estimate(const std::vector<scan_overlap::Node> &nodes,
         //ars::findGlobalMaxBBFourier(correlationFourier, -50.0 * M_PI / 180.0, 50.0 * M_PI / 180.0, xtol_, .0, tMax, fMax);
         ars::findGlobalMaxBBFourier(correlationFourier, .0, M_PI, xtol_, .0, tMax, fMax);
         angles.push_back(scan_overlap::mod180(tMax + angles[i - 1]));
-        std::cout << RAD2DEG(tMax) << ",";
 
-        ROFL_VAR2(nodeSrc.id, nodeDst.id);
-        ROFL_VAR4(scan_overlap::mod180(tMax + angles[i - 1]), RAD2DEG(tMax),
-                  RAD2DEG(atan2(odoms.at(i - 1).linear().col(0).y(), odoms.at(i - 1).linear().col(0).x())), RAD2DEG(atan2(odoms.at(i).linear().col(0).y(), odoms.at(i).linear().col(0).x())));
-
-        // if (nodeSrc.id == 6586)
-        // {
-
-        //     std::cout << "correlationFourier" << std::endl;
-        //     for (int i = 0; i < 180; ++i)
-        //     {
-        //         std::cout << "\t" << i << " \t" << ars::evaluateFourier(correlationFourier, 2.0 * M_PI / 180.0 * i) << "\n";
-        //     }
-
-        //     pcl::visualization::PCLVisualizer::Ptr viewer(new pcl::visualization::PCLVisualizer);
-        //     viewer->setBackgroundColor(0, 0, 0);
-        //     pcl::PointCloud<pcl::PointXYZ>::Ptr cloudSrc(new pcl::PointCloud<pcl::PointXYZ>);
-        //     pcl::PointCloud<pcl::PointXYZ>::Ptr cloudDst(new pcl::PointCloud<pcl::PointXYZ>);
-        //     for (const auto &p : nodeSrc.cloud)
-        //         cloudSrc->push_back(pcl::PointXYZ(p.x(), p.y(), 0.f));
-        //     for (const auto &p : nodeDst.cloud)
-        //         cloudDst->push_back(pcl::PointXYZ(p.x(), p.y(), 0.f));
-        //     viewer->addPointCloud<pcl::PointXYZ>(cloudSrc, "cloudSrc");
-        //     viewer->addPointCloud<pcl::PointXYZ>(cloudDst, "cloudDst");
-        //     viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_COLOR, 1.0, 0.0, 0.0, "cloudSrc");
-        //     viewer->setPointCloudRenderingProperties(pcl::visualization::PCL_VISUALIZER_COLOR, 0.0, 1.0, 0.0, "cloudDst");
-
-        //     viewer->spin();
-        // }
+        // ROFL_VAR2(nodeSrc.id, nodeDst.id);
+        // ROFL_VAR4(scan_overlap::mod180(tMax + angles[i - 1]), RAD2DEG(tMax),
+        //           RAD2DEG(atan2(odoms.at(i - 1).linear().col(0).y(), odoms.at(i - 1).linear().col(0).x())), RAD2DEG(atan2(odoms.at(i).linear().col(0).y(), odoms.at(i).linear().col(0).x())));
     }
     std::cout << std::endl;
 }
@@ -623,6 +599,89 @@ void GraphSolverHS::estimate(const std::vector<scan_overlap::Node> &nodes,
         double rot = thetaStep * imax;
         angles.push_back(scan_overlap::mod180(rot + angles[i - 1]));
     }
+}
+
+void GraphSolverG2O::estimate(const std::vector<scan_overlap::Node> &nodes,
+                             const scan_overlap::VectorTransform2 &odoms,
+                             const std::vector<scan_overlap::Edge> &edges,
+                             std::vector<double> &angles){
+    g2o::VertexSE2 *transfVertex;
+    g2o::EdgeSE2 *transfEdge;
+    g2o::SparseOptimizer optimizer;
+
+	auto linearSolver = std::make_unique<SlamLinearSolver>();
+	linearSolver->setBlockOrdering(false);
+	g2o::OptimizationAlgorithmGaussNewton *solver = new g2o::OptimizationAlgorithmGaussNewton(
+		std::make_unique<SlamBlockSolver>(std::move(linearSolver)));
+	optimizer.setAlgorithm(solver);
+
+    int numNodes = nodes.size();
+	std::map<int, int> idToIdx;
+
+	std::vector<g2o::VertexSE2 *> transfVertices;
+	scan_overlap::Transform2 odomOriginInverse = odoms[0].inverse();
+	for (int t = 0; t < numNodes; ++t)
+	{
+		idToIdx[nodes[t].id] = t;
+		// Inserts the new robot pose as graph vertex
+		transfVertex = new g2o::VertexSE2;
+		transfVertex->setId(nodes[t].id);
+		auto odom = odomOriginInverse * odoms[t];
+		double x = odom.translation().x();
+		double y = odom.translation().y();
+		double theta = atan2(odom.linear().col(0).y(), odom.linear().col(0).x());
+
+		g2o::SE2 nodePose = g2o::SE2(x, y, theta);
+		transfVertex->setEstimate(nodePose);
+		if (t == 0) {
+			transfVertex->setFixed(true);
+		}
+		transfVertices.push_back(transfVertex);
+		optimizer.addVertex(transfVertex);
+	}
+
+	int numEdges = edges.size();
+	std::vector<scan_overlap::Transform2> transfVecIcp;
+
+	for (int t = 0; t < numEdges; ++t)
+	{
+		// Inserts the odometry edge corresponding to odometry
+		transfEdge = new g2o::EdgeSE2;
+		int src = idToIdx[edges[t].src];
+		int dst = idToIdx[edges[t].dst];
+		transfEdge->vertices()[0] = transfVertices[src];
+		transfEdge->vertices()[1] = transfVertices[dst];
+		auto cloudSrc = nodes[src].cloud;
+		auto cloudDst = nodes[dst].cloud;
+
+		scan_overlap::SimpleIcpRegistration icp(1000);
+		scan_overlap::Transform2 transfEstim;
+		icp.setPointSetSrc(cloudSrc);
+		icp.setPointSetDst(cloudDst);
+		auto transfGuess = odoms[src].inverse() * odoms[dst];
+		icp.computeRigidTransform(transfEstim, transfGuess);
+
+		g2o::SE2 edgeMeasurement(transfEstim.translation().x(), transfEstim.translation().y(),
+								 atan2(transfEstim.linear().col(0).y(), transfEstim.linear().col(0).x()));
+		transfEdge->setMeasurement(edgeMeasurement);
+		transfEdge->setInformation(scan_overlap::Matrix3::Identity());
+		transfEdge->setId(t);
+		optimizer.addEdge(transfEdge);
+	}
+
+	optimizer.verifyInformationMatrices(true);
+
+	optimizer.initializeOptimization();
+	optimizer.optimize(50);
+
+	for (int t = 0; t < numNodes; ++t)
+	{
+		g2o::VertexSE2* vertex = (g2o::VertexSE2 *)optimizer.vertex(nodes[t].id);
+		auto estPose = vertex->estimate();
+        angles.push_back(estPose.rotation().angle());
+	}
+
+	optimizer.clear();
 }
 
 void drawResults(const string& id, 
@@ -751,210 +810,3 @@ void drawResults(const string& id,
         file << datas.back() << plots;
         file.close();
 }
-
-/*void drawResults(const string& id, 
-                 const std::vector<scan_overlap::Node> &nodes,
-                 const scan_overlap::VectorTransform2& transGT,
-                 const std::vector<double>& anglesIcp, 
-                 const std::vector<double>& anglesVfc, 
-                 const std::vector<double>& anglesArs, 
-                 const std::vector<double>& anglesArsG){
-    string plots;
-    std::vector<string> datas(nodes.size());
-
-    scan_overlap::Vector2 lastTransl = (transGT.front().inverse() *
-                                    transGT.back()).translation();
-
-    std::vector<Eigen::Rotation2Dd> anglesGT;
-    anglesGT.push_back(Eigen::Rotation2Dd(.0));
-    std::vector<scan_overlap::Vector2> translGT;
-    translGT.push_back(scan_overlap::Vector2(.0,.0));
-    for (int i = 1; i < nodes.size(); ++i){
-        auto gt = transGT.at(i-1).inverse() * transGT.at(i);
-        anglesGT.push_back(Eigen::Rotation2Dd(gt.linear()));
-        translGT.push_back(gt.translation());
-    }
-
-    if (!anglesIcp.empty()){
-        plots += " $icp using 1:2 w l,";
-        for(int i = 1; i < nodes.size(); i++){
-            const auto& cloud = nodes.at(i).cloud;
-            string& data = datas.at(i-1); 
-            data += "$icp << EOD\n";
-            Eigen::Rotation2Dd rot(anglesIcp.at(i) - anglesIcp.at(i-1));
-            for(const auto& p : cloud){
-                auto point = rot * p;
-                point += translGT.at(i);
-                data += (to_string(point.x()) + " " 
-                    + to_string(point.y()) + "\n");
-            }
-            data += "EOD\n";
-        }
-        //first and last
-        const auto& cloud = nodes.back().cloud;
-        string& data = datas.back(); 
-        data += "$icp << EOD\n";
-        Eigen::Rotation2Dd rot(anglesIcp.back());
-        for(const auto& p : cloud){
-            auto point = rot * p;
-            point += lastTransl;
-            data += (to_string(point.x()) + " " 
-                + to_string(point.y()) + "\n");
-        }
-        data += "EOD\n";
-    }
-    if (!anglesVfc.empty()){
-        plots += " $vfc using 1:2 w l,";
-        for(int i = 1; i < nodes.size(); i++){
-            const auto& cloud = nodes.at(i).cloud;
-            string& data = datas.at(i-1); 
-            data += "$vfc << EOD\n";
-            Eigen::Rotation2Dd rot(anglesVfc.at(i) - anglesVfc.at(i-1));
-            for(const auto& p : cloud){
-                auto point = rot * p;
-                point += translGT.at(i);
-                data += (to_string(point.x()) + " " 
-                    + to_string(point.y()) + "\n");
-            }
-            data += "EOD\n";
-        }
-        //first and last
-        const auto& cloud = nodes.back().cloud;
-        string& data = datas.back(); 
-        data += "$vfc << EOD\n";
-        Eigen::Rotation2Dd rot(anglesVfc.back());
-        for(const auto& p : cloud){
-            auto point = rot * p;
-            point += lastTransl;
-            data += (to_string(point.x()) + " " 
-                + to_string(point.y()) + "\n");
-        }
-        data += "EOD\n";
-    }
-    if (!anglesArs.empty()){
-        plots += " $ars using 1:2 w l,";
-        for(int i = 1; i < nodes.size(); i++){
-            const auto& cloud = nodes.at(i).cloud;
-            string& data = datas.at(i-1); 
-            data += "$ars << EOD\n";
-            Eigen::Rotation2Dd rot(anglesArs.at(i) - anglesArs.at(i-1));
-            for(const auto& p : cloud){
-                auto point = rot * p;
-                point += translGT.at(i);
-                data += (to_string(point.x()) + " " 
-                    + to_string(point.y()) + "\n");
-            }
-            data += "EOD\n";
-        }
-        const auto& cloud = nodes.back().cloud;
-        string& data = datas.back(); 
-        data += "$ars << EOD\n";
-        Eigen::Rotation2Dd rot(anglesArs.back());
-        for(const auto& p : cloud){
-            auto point = rot * p;
-            point += lastTransl;
-            data += (to_string(point.x()) + " " 
-                + to_string(point.y()) + "\n");
-        }
-        data += "EOD\n";
-    }
-    if (!anglesArsG.empty()){
-        plots += " $arsg using 1:2 w l,";
-        for(int i = 1; i < nodes.size(); i++){
-            const auto& cloud = nodes.at(i).cloud;
-            string& data = datas.at(i-1); 
-            data += "$arsg << EOD\n";
-            Eigen::Rotation2Dd rot(anglesArsG.at(i) - anglesArsG.at(i-1));
-            for(const auto& p : cloud){
-                auto point = rot * p;
-                point += translGT.at(i);
-                data += (to_string(point.x()) + " " 
-                    + to_string(point.y()) + "\n");
-            }
-            data += "EOD\n";
-        }
-        const auto& cloud = nodes.back().cloud;
-        string& data = datas.back(); 
-        data += "$arsg << EOD\n";
-        Eigen::Rotation2Dd rot(anglesArsG.back());
-        for(const auto& p : cloud){
-            auto point = rot * p;
-            point += lastTransl;
-            data += (to_string(point.x()) + " " 
-                + to_string(point.y()) + "\n");
-        }
-        data += "EOD\n";
-    }
-    if(plots.length() > 0){
-        string dir("./" + id + "_graphs/");
-        std::filesystem::path path(dir);
-
-        plots = "plot" + plots;
-        plots += " $gt using 1:2 w l, $prev using 1:2 w l";
-
-        for(int i = 1; i < nodes.size(); i++){
-            const auto& cloud = nodes.at(i).cloud;
-            string& data = datas.at(i-1); 
-            data += "$gt << EOD\n";
-            Eigen::Rotation2Dd rot = anglesGT.at(i);
-            for(const auto& p : cloud){
-                auto point = rot * p;
-                point += translGT.at(i);
-                data += (to_string(point.x()) + " " 
-                    + to_string(point.y()) + "\n");
-            }
-            data += "EOD\n";
-        }
-        {
-        const auto& cloud = nodes.back().cloud;
-        string& data = datas.back(); 
-        data += "$gt << EOD\n";
-        Eigen::Rotation2Dd rot((transGT.front().inverse() * 
-                            transGT.back()).linear());
-        for(const auto& p : cloud){
-            auto point = rot * p;
-            point += lastTransl;
-            data += (to_string(point.x()) + " " 
-                + to_string(point.y()) + "\n");
-        }
-        data += "EOD\n";
-        }
-        for(int i = 1; i < nodes.size(); i++){
-            const auto& cloud = nodes.at(i-1).cloud;
-            string& data = datas.at(i-1); 
-            data += "$prev << EOD\n";
-            for(const auto& p : cloud){
-                data += (to_string(p.x()) + " " 
-                    + to_string(p.y()) + "\n");
-            }
-            data += "EOD\n";
-        }
-        {
-        const auto& cloud = nodes.front().cloud;
-        string& data = datas.back(); 
-        data += "$prev << EOD\n";
-        for(const auto& p : cloud){
-            data += (to_string(p.x()) + " " 
-                + to_string(p.y()) + "\n");
-        }
-        data += "EOD\n";
-        }
-        //create dir
-        if (!(std::filesystem::exists(path))) {
-        std::cout << "Visualization directory doesn't Exists" << std::endl;
-        if (std::filesystem::create_directories(path))
-            std::cout << "....Successfully Created !" << std::endl;
-        }
-        for(int i = 0; i < datas.size() - 1; i++){
-            const auto& n = nodes.at(i+1);
-            string filename(dir + to_string(n.id) + ".plot");
-            ofstream file(filename);
-            file << datas.at(i) << plots;
-            file.close();
-        }
-        string filename(dir + "first_last" + ".plot");
-        ofstream file(filename);
-        file << datas.back() << plots;
-        file.close();
-    }
-}*/

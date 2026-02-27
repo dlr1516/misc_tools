@@ -4,6 +4,8 @@ import os
 
 import re
 
+def comparator(elem):
+    return elem[0]['id']
 
 #results_filename = "../build/results_icp_vfc_arspw_arsgraph_20260213_1139_08.csv"
 dir = "../build/results_batch/"
@@ -48,4 +50,61 @@ for file in os.listdir(dir):
     print(f"Loaded {len(rows)} rows, fields: {reader_fieldnames_stripped}")
     results.append(rows)
 
-print(len(results))
+print(f"Loaded results for {len(results)} graphs")
+
+results.sort(key=comparator)
+
+count = 0
+print("Scans with simmetry issue: ")
+for rows in results:
+    err = abs(rows[-1]['gt'] - rows[-1]['ars_graph'])
+    if(err > 20):
+        print(f"{rows[0]['id']}: err in last {err}")
+        count += 1
+print(f"total count: {count}")
+
+avg_errors = []
+last_errors = []
+
+for rows in results:
+    avg_err = {}
+    last_err = {}
+    avg_err['id'] = rows[0]['id']
+    last_err['id'] = rows[0]['id']
+    size = len(rows)
+    for row in rows:
+        for key, val in row.items():
+            if(key == 'gt' or key == 'id' or key == 'odom'):
+                continue
+            if not key in avg_err.keys():
+                avg_err[key] = 0.0
+            err = abs(val - row['gt'])
+            avg_err[key] = avg_err[key] + err
+        for key in avg_err.keys():
+            if(key != 'id'):
+                avg_err[key] = avg_err[key]/size
+    for key, val in rows[-1].items():
+        if(key == 'gt' or key == 'id' or key == 'odom'):
+            continue
+        last_err[key] = abs(val - rows[-1]['gt'])
+
+    avg_errors.append(avg_err)
+    last_errors.append(last_err)
+
+with open("errors.txt", "w") as f:
+    for i in range(len(avg_errors)):
+        avg_err = avg_errors[i]
+        last_err = last_errors[i]
+        id = avg_err['id']
+        f.write(f"{int(id)}: \taverage:\t")
+        for key, val in avg_err.items():
+            if(key == 'gt' or key == 'id'):
+                continue
+            f.write(f"{key}: {val:.4f}\t")
+        f.write("\n\tlast node:\t")
+        for key, val in last_err.items():
+            if(key == 'gt' or key == 'id'):
+                continue
+            f.write(f"{key}: {val:.4f}\t")
+        f.write("\n\n")        
+
