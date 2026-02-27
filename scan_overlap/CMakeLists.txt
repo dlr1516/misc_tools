@@ -91,8 +91,8 @@ add_executable(run_graph_tests
   src/thirdparty/libvfc/vfc.cpp
   src/thirdparty/libicp/icp.cpp
 )
-target_link_libraries(run_graph_tests ${Boost_LIBRARIES} ${rofl_LIBRARIES} ${ars_LIBRARIES} icp vfc opencv_core ${PCL_LIBRARIES} 
-    g2o::core g2o::solver_eigen g2o::types_slam2d g2o::types_slam3d g2o::types_sba g2o::solver_csparse)
+target_link_libraries(run_graph_tests ${Boost_LIBRARIES} ${rofl_LIBRARIES} ${ars_LIBRARIES} icp vfc opencv_core ${PCL_LIBRARIES}
+  g2o::core g2o::solver_eigen g2o::types_slam2d g2o::types_slam3d g2o::types_sba g2o::solver_csparse)
 target_compile_features(run_graph_tests PRIVATE cxx_std_17)
 
 # test_run_graph_tests
@@ -130,11 +130,10 @@ target_link_libraries(draw_graph_corr ${Boost_LIBRARIES} ${rofl_LIBRARIES} ${ars
 target_compile_features(draw_graph_corr PRIVATE cxx_std_17)
 
 # test_pgo_g2o_tutorial
-
 add_library(tutorial_slam2d_library ${G2O_LIB_TYPE}
-  src/g2o/edge_se2_pointxy.cpp  src/g2o/se2.h                src/g2o/vertex_point_xy.h
-  src/g2o/edge_se2.cpp    src/g2o/edge_se2_pointxy.h    src/g2o/vertex_se2.cpp
-  src/g2o/edge_se2.h      src/g2o/vertex_point_xy.cpp  src/g2o/vertex_se2.h
+  src/g2o/edge_se2_pointxy.cpp src/g2o/se2.h src/g2o/vertex_point_xy.h
+  src/g2o/edge_se2.cpp src/g2o/edge_se2_pointxy.h src/g2o/vertex_se2.cpp
+  src/g2o/edge_se2.h src/g2o/vertex_point_xy.cpp src/g2o/vertex_se2.h
   src/g2o/parameter_se2_offset.h src/g2o/parameter_se2_offset.cpp
   src/g2o/types_tutorial_slam2d.h src/g2o/types_tutorial_slam2d.cpp
   src/g2o/simulator.h src/g2o/simulator.cpp
@@ -169,7 +168,7 @@ add_executable(test_pgo_g2o_arsgraph
   src/transform_utils.cpp
   src/simple_icp_registration.cpp
 )
-target_link_libraries(test_pgo_g2o_arsgraph ${Boost_LIBRARIES} ${rofl_LIBRARIES} ${ars_LIBRARIES} icp ${PCL_LIBRARIES}  
+target_link_libraries(test_pgo_g2o_arsgraph ${Boost_LIBRARIES} ${rofl_LIBRARIES} ${ars_LIBRARIES} icp ${PCL_LIBRARIES}
   g2o::core g2o::solver_eigen g2o::types_slam2d g2o::types_slam3d g2o::types_sba g2o::solver_csparse)
 target_compile_features(test_pgo_g2o_arsgraph PRIVATE cxx_std_17)
 
@@ -190,3 +189,11 @@ add_executable(test_hough_spectrum
 )
 target_link_libraries(test_hough_spectrum ${Boost_LIBRARIES} ${rofl_LIBRARIES} ${ars_LIBRARIES} icp ${PCL_LIBRARIES})
 target_compile_features(test_hough_spectrum PRIVATE cxx_std_17)
+
+# test_ars_graph_time
+add_executable(test_ars_graph_time
+  app/test_ars_graph_time.cpp
+  src/transform_utils.cpp
+)
+target_link_libraries(test_ars_graph_time ${Boost_LIBRARIES} ${rofl_LIBRARIES} ${ars_LIBRARIES})
+target_compile_features(test_ars_graph_time PRIVATE cxx_std_17)
