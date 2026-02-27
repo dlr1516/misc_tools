@@ -29,6 +29,8 @@ void findSubGraph(const std::vector<scan_overlap::Node>& nodes,
                   scan_overlap::VectorTransform2& subOdoms,
                   std::vector<scan_overlap::Edge>& subEdges);
 
+void computeNodeArs(std::vector<scan_overlap::Node>& nodes);
+
 void estimateArsGraph(const std::vector<scan_overlap::Node>& nodes,
                       const scan_overlap::VectorTransform2& odoms,
                       const std::vector<scan_overlap::Edge>& edges,
@@ -72,6 +74,7 @@ int main(int argc, char** argv) {
         std::vector<std::vector<double>> solutions;
 
         scan_overlap::readGraph(filenameGraph, nodes, gts, odoms, edges);
+        computeNodeArs(nodes);
 
         // Solves the subgraph with ARS and computes the times
         for (int i = 2; i < nodes.size(); ++i) {
@@ -136,6 +139,50 @@ void findSubGraph(const std::vector<scan_overlap::Node>& nodes,
             continue;
         }
         subEdges.push_back(e);
+    }
+}
+
+void computeNodeArs(std::vector<scan_overlap::Node>& nodes) {
+    for (auto& n : nodes) {
+        std::cout << "Node " << n.id << ", cloud size " << n.cloud.size()
+                  << std::endl;
+
+        ars::AngularRadonSpectrum2d arsSrc;
+
+        int fourierOrder =
+            30;  // TODO: make ARS params configurable from file/command line
+        double sigma = 0.05;
+
+        arsSrc.setARSFOrder(fourierOrder);
+
+        arsSrc.initLUT(0.0001);
+        arsSrc.setComputeMode(
+            ars::ArsKernelIsotropic2d::ComputeMode::PNEBI_LUT);
+
+        ars::VectorVector2 acesPoints1;
+        acesPoints1.push_back(n.cloud.front());
+        for (auto& p : n.cloud) {
+            // if(scan_overlap::squaredDistance2D(p, acesPoints1.back()) >
+            // 0.2*0.2)
+            acesPoints1.push_back(ars::Vector2(p.x(), p.y()));
+        }
+        arsSrc.insertIsotropicGaussians(acesPoints1, sigma);
+
+        std::cout << "ars.coefficients().at(0) " << arsSrc.coefficients().at(0)
+                  << ", ars.coefficients().at(2) "
+                  << arsSrc.coefficients().at(2) << std::endl;
+
+        std::cout << "\n------\n" << std::endl;
+
+        std::cout << "\nARS Coefficients:\n";
+        std::cout << "\ti \tLUT\n";
+        for (int i = 0; i < arsSrc.coefficients().size(); ++i) {
+            std::cout << "\t" << i << " \t" << arsSrc.coefficients().at(i)
+                      << "\n";
+        }
+        std::cout << std::endl;
+
+        n.setCoeffs(arsSrc.coefficients());
     }
 }
 
