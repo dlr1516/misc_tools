@@ -142,19 +142,9 @@ int main(int argc, char* argv[]) {
     plotter->setTitle(ss.str().c_str());
     plotter->spin();
 
-    // running = true;
-    // while (running) {
-    //     if (update_plot) {
-    //         plotter->addPlotData(correlationPlots[current_plot].angles,
-    //                              correlationPlots[current_plot].values);
-    //         ss.str("");
-    //         ss << "Correlation between node "
-    //            << correlationPlots[current_plot].isrc << " and node "
-    //            << correlationPlots[current_plot].idst;
-    //         plotter->setTitle(ss.str().c_str());
-    //         update_plot = false;
-    //     }
+    // while (plotter->wasStopped()) {
     //     plotter->spinOnce(100);
+    //     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     // }
 
     return 0;
