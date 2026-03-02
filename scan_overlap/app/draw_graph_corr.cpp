@@ -25,6 +25,8 @@ using namespace std::chrono_literals;
 struct CorrelationPlot {
     int isrc;
     int idst;
+    int idxArsSrc;
+    int idxArsDst;
     std::vector<double> tMax;
     std::vector<double> fMax;
     std::vector<double> gtX;
@@ -33,6 +35,21 @@ struct CorrelationPlot {
     std::vector<double> values;
 };
 std::vector<CorrelationPlot> correlationPlots;
+
+struct ArsPlot {
+    int id;
+    std::vector<double> angles;
+    std::vector<double> values;
+    double valueMax;
+};
+std::vector<ArsPlot> arsPlots;
+
+void normalizeArsPlot(ArsPlot& ap, double maxValue) {
+    for (auto& v : ap.values) {
+        v *= maxValue / ap.valueMax;
+    }
+    ap.valueMax = maxValue;  // new max after renormalization
+}
 
 // Control flags used by visualizer
 std::atomic<int> current_plot(0);
@@ -94,6 +111,18 @@ int main(int argc, char* argv[]) {
 
         n.setCoeffs(arsSrc.coefficients());
         indexToPos.insert(std::make_pair(n.id, pos));
+
+        ArsPlot ap;
+        ap.id = n.id;
+        ars::findGlobalMaxBBFourier(arsSrc.coefficients(), .0, M_PI, xtol, .0,
+                                    tMax, ap.valueMax);
+        for (int i = 0; i < angleNum; ++i) {
+            ap.angles.push_back(180.0 * i / angleNum);
+            ap.values.push_back(ars::evaluateFourier(
+                arsSrc.coefficients(), 2.0 * M_PI * i / angleNum));
+        }
+        arsPlots.push_back(ap);
+
         pos++;
     }
 
@@ -120,6 +149,8 @@ int main(int argc, char* argv[]) {
         CorrelationPlot plot;
         plot.isrc = e.src;
         plot.idst = e.dst;
+        plot.idxArsSrc = srcIdx;
+        plot.idxArsDst = dstIdx;
         // plot.tMax.push_back(tMax);
         plot.tMax.push_back(tMax);
         // plot.fMax.push_back(0.0);
@@ -158,6 +189,17 @@ int main(int argc, char* argv[]) {
 
     current_plot = 0;
     // plotter->setYRange(0.0, 1.25 * correlationPlots[current_plot].fMax[0]);
+    normalizeArsPlot(arsPlots[correlationPlots[current_plot].idxArsSrc],
+                     correlationPlots[current_plot].fMax[0]);
+    normalizeArsPlot(arsPlots[correlationPlots[current_plot].idxArsDst],
+                     correlationPlots[current_plot].fMax[0]);
+
+    plotter->addPlotData(
+        arsPlots[correlationPlots[current_plot].idxArsSrc].angles,
+        arsPlots[correlationPlots[current_plot].idxArsSrc].values, "ars src");
+    plotter->addPlotData(
+        arsPlots[correlationPlots[current_plot].idxArsDst].angles,
+        arsPlots[correlationPlots[current_plot].idxArsDst].values, "ars dst");
     plotter->addPlotData(correlationPlots[current_plot].angles,
                          correlationPlots[current_plot].values, "corr");
     plotter->addPlotData(correlationPlots[current_plot].tMax,
@@ -212,6 +254,19 @@ void keyboardEventOccurred(vtkObject* caller,
         }
 
         plotter->clearPlots();
+        normalizeArsPlot(arsPlots[correlationPlots[current_plot].idxArsSrc],
+                         correlationPlots[current_plot].fMax[0]);
+        normalizeArsPlot(arsPlots[correlationPlots[current_plot].idxArsDst],
+                         correlationPlots[current_plot].fMax[0]);
+
+        plotter->addPlotData(
+            arsPlots[correlationPlots[current_plot].idxArsSrc].angles,
+            arsPlots[correlationPlots[current_plot].idxArsSrc].values,
+            "ars src");
+        plotter->addPlotData(
+            arsPlots[correlationPlots[current_plot].idxArsDst].angles,
+            arsPlots[correlationPlots[current_plot].idxArsDst].values,
+            "ars dst");
         plotter->addPlotData(correlationPlots[current_plot].angles,
                              correlationPlots[current_plot].values, "corr");
         plotter->addPlotData(correlationPlots[current_plot].tMax,

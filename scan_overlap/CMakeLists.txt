@@ -43,6 +43,8 @@ find_package(PCL 1.14 REQUIRED)
 include_directories(${PCL_INCLUDE_DIRS})
 
 # g2o
+include_directories(/usr/include/suitesparse)
+
 find_package(g2o REQUIRED)
 include_directories(${G2O_INCLUDE_DIRS})
 link_directories(${G2O_LIBRARY_DIRS})

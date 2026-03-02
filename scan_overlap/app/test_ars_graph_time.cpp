@@ -38,7 +38,7 @@ void estimateArsGraph(const std::vector<scan_overlap::Node>& nodes,
 
 int main(int argc, char** argv) {
     // reading params and graph
-    std::string filenameCfg, filenameGraph, dirnameGraph;
+    std::string filenameCfg, filenameGraph, dirnameGraph, filenameResults;
     std::vector<std::string> filenames;
     bool batch;
     rofl::ParamMap params;
@@ -50,6 +50,8 @@ int main(int argc, char** argv) {
     params.read(argc, argv);
     params.getParam<std::string>("in", filenameGraph, std::string(""));
     params.getParam<std::string>("in_dir", dirnameGraph, std::string(""));
+    params.getParam<std::string>("out", filenameResults,
+                                 std::string("times.txt"));
     params.getParam<bool>("batch", batch, false);
 
     std::cout << "\nParams:" << std::endl;
@@ -89,10 +91,22 @@ int main(int argc, char** argv) {
             estimateArsGraph(subNodes, subOdoms, subEdges, angles);
         }
         rofl::Profiler::getProfiler().printStats(std::cout);
+
+        std::ofstream fileOut(filenameResults);
+        fileOut << "NodesNum Time(s)\n";
+        rofl::Profiler::getProfiler().printStats(fileOut);
+        fileOut.close();
     }
 
     std::cout << "\n\n-----\nFinal stats:" << std::endl;
     rofl::Profiler::getProfiler().printStats(std::cout);
+
+    {
+        std::ofstream fileOut(filenameResults);
+        fileOut << "NodesNum Time(s)\n";
+        rofl::Profiler::getProfiler().printStats(fileOut);
+        fileOut.close();
+    }
 
     return 0;
 }
